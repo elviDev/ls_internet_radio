@@ -1,35 +1,42 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState } from "react"
-import Link from "next/link"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Checkbox } from "@/components/ui/checkbox"
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card"
-import { Radio } from "lucide-react"
+import { useState } from "react";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
+import { Radio } from "lucide-react";
 
 export default function SignInPage() {
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    setIsLoading(true)
+    e.preventDefault();
+    setIsLoading(true);
     // Simulate API call
     setTimeout(() => {
-      setIsLoading(false)
+      setIsLoading(false);
       // In a real app, you would handle authentication here
-    }, 1500)
-  }
+    }, 1500);
+  };
 
   return (
     <div className="container flex items-center justify-center min-h-screen py-12">
       <div className="w-full max-w-md">
         <div className="flex items-center justify-center mb-8">
           <Link href="/" className="flex items-center space-x-2">
-            <Radio className="h-8 w-8 text-purple-600" />
+            <Radio className="h-8 w-8 text-brand-600" />
             <span className="font-bold text-2xl">WaveStream</span>
           </Link>
         </div>
@@ -37,19 +44,29 @@ export default function SignInPage() {
         <Card>
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold">Welcome back</CardTitle>
-            <CardDescription>Enter your credentials to access your account</CardDescription>
+            <CardDescription>
+              Enter your credentials to access your account
+            </CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={handleSubmit}>
               <div className="grid gap-4">
                 <div className="grid gap-2">
                   <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" placeholder="name@example.com" required />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="name@example.com"
+                    required
+                  />
                 </div>
                 <div className="grid gap-2">
                   <div className="flex items-center justify-between">
                     <Label htmlFor="password">Password</Label>
-                    <Link href="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700">
+                    <Link
+                      href="/forgot-password"
+                      className="text-sm text-brand-600 hover:text-brand-700"
+                    >
                       Forgot password?
                     </Link>
                   </div>
@@ -59,7 +76,11 @@ export default function SignInPage() {
                   <Checkbox id="remember" />
                   <Label htmlFor="remember">Remember me</Label>
                 </div>
-                <Button type="submit" className="w-full bg-purple-600 hover:bg-purple-700" disabled={isLoading}>
+                <Button
+                  type="submit"
+                  className="w-full bg-brand-600 hover:bg-brand-700"
+                  disabled={isLoading}
+                >
                   {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </div>
@@ -69,7 +90,9 @@ export default function SignInPage() {
                 <div className="w-full border-t border-muted-foreground/20"></div>
               </div>
               <div className="relative flex justify-center text-xs">
-                <span className="bg-background px-2 text-muted-foreground">or continue with</span>
+                <span className="bg-background px-2 text-muted-foreground">
+                  or continue with
+                </span>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -95,7 +118,11 @@ export default function SignInPage() {
                 Google
               </Button>
               <Button variant="outline">
-                <svg className="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 24 24">
+                <svg
+                  className="mr-2 h-4 w-4"
+                  fill="currentColor"
+                  viewBox="0 0 24 24"
+                >
                   <path d="M22 12c0-5.523-4.477-10-10-10S2 6.477 2 12c0 4.991 3.657 9.128 8.438 9.878v-6.987h-2.54V12h2.54V9.797c0-2.506 1.492-3.89 3.777-3.89 1.094 0 2.238.195 2.238.195v2.46h-1.26c-1.243 0-1.63.771-1.63 1.562V12h2.773l-.443 2.89h-2.33v6.988C18.343 21.128 22 16.991 22 12z" />
                 </svg>
                 Facebook
@@ -105,7 +132,10 @@ export default function SignInPage() {
           <CardFooter>
             <p className="text-sm text-center w-full text-muted-foreground">
               Don't have an account?{" "}
-              <Link href="/signup" className="text-purple-600 hover:text-purple-700 font-medium">
+              <Link
+                href="/signup"
+                className="text-brand-600 hover:text-brand-700 font-medium"
+              >
                 Sign up
               </Link>
             </p>
@@ -113,5 +143,5 @@ export default function SignInPage() {
         </Card>
       </div>
     </div>
-  )
+  );
 }

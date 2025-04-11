@@ -1,51 +1,41 @@
-import { NextResponse } from "next/server"
-import type { NextRequest } from "next/server"
-import { verify } from "jsonwebtoken"
-import { getSession } from "./lib/redis"
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
+import { verify } from "jsonwebtoken";
 
 // Routes that require authentication
-const protectedRoutes = ["/admin"]
+const protectedRoutes = ["/admin"];
 
 export async function middleware(request: NextRequest) {
-  const token = request.cookies.get("auth_token")?.value
-  const path = request.nextUrl.pathname
+  const token = request.cookies.get("auth_token")?.value;
+  const path = request.nextUrl.pathname;
 
-  // Check if the route requires authentication (only admin routes)
-  const isProtectedRoute = protectedRoutes.some((route) => path.startsWith(route))
+  const isProtectedRoute = protectedRoutes.some((route) =>
+    path.startsWith(route)
+  );
 
-  // If no token and trying to access protected route, redirect to login
-  if (!token && isProtectedRoute) {
-    const url = new URL("/login", request.url)
-    url.searchParams.set("callbackUrl", path)
-    return NextResponse.redirect(url)
-  }
+  if (isProtectedRoute) {
+    if (!token) {
+      // No token and accessing protected route
+      const url = new URL("/login", request.url);
+      url.searchParams.set("callbackUrl", path);
+      return NextResponse.redirect(url);
+    }
 
-  // If token exists, verify it for protected routes
-  if (token && isProtectedRoute) {
     try {
-      const decoded = verify(token, process.env.TOKEN_SECRET || "your-fallback-secret-key-change-this") as {
-        sessionId: string
-      }
-      const { sessionId } = decoded
-
-      // Check if session exists in Redis
-      const session = await getSession(sessionId)
-
-      // If session is invalid and trying to access protected route, redirect to login
-      if (!session) {
-        const url = new URL("/login", request.url)
-        url.searchParams.set("callbackUrl", path)
-        return NextResponse.redirect(url)
-      }
+      // Directly verify the token
+      verify(
+        token,
+        process.env.TOKEN_SECRET || "your-fallback-secret-key-change-this"
+      );
     } catch (error) {
-      // If token is invalid and trying to access protected route, redirect to login
-      const url = new URL("/login", request.url)
-      url.searchParams.set("callbackUrl", path)
-      return NextResponse.redirect(url)
+      // Token is invalid or expired
+      const url = new URL("/login", request.url);
+      url.searchParams.set("callbackUrl", path);
+      return NextResponse.redirect(url);
     }
   }
 
-  return NextResponse.next()
+  return NextResponse.next();
 }
 
 export const config = {
@@ -56,8 +46,8 @@ export const config = {
      * - _next/static (static files)
      * - _next/image (image optimization files)
      * - favicon.ico (favicon file)
-     * - public folder
+     * - public folder files
      */
     "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp)$).*)",
   ],
-}
+};
