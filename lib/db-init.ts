@@ -1,31 +1,40 @@
-import dbConnect from "./mongoose"
-import User from "@/models/User"
+import { prisma } from "./prisma";
+import { hashPassword } from "./auth";
 
 export async function initializeDatabase() {
   try {
-    // Connect to database
-    await dbConnect()
+    console.log("Initializing database...");
 
     // Check if we have any users
-    const userCount = await User.countDocuments()
+    const userCount = await prisma.user.count();
 
     if (userCount === 0) {
-      console.log("No users found. Creating sample user...")
+      console.log("No users found. Creating sample user...");
 
       // Create a sample admin user
-      await User.create({
-        name: "Admin User",
-        email: "admin@example.com",
-        // Password: "password123" (hashed)
-        password: "$2a$12$k8Y1THPD8KDNPAYo1Lh.Yuh3Yp7Kl0xvRxXlzPwXCvLdFIFVNKCey",
-        role: "admin",
-      })
+      const hashedPassword = await hashPassword("password123");
 
-      console.log("Sample user created successfully!")
+      const admin = await prisma.user.create({
+        data: {
+          name: "Admin User",
+          email: "admin@example.com",
+          password: hashedPassword,
+          role: "admin",
+        },
+      });
+
+      // Create user data for admin
+      await prisma.userData.create({
+        data: {
+          userId: admin.id,
+        },
+      });
+
+      console.log("Sample user created successfully!");
     }
 
-    console.log("Database initialization completed.")
+    console.log("Database initialization completed.");
   } catch (error) {
-    console.error("Database initialization failed:", error)
+    console.error("Database initialization failed:", error);
   }
 }

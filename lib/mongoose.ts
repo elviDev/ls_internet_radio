@@ -1,30 +1,37 @@
-import mongoose from "mongoose"
+import mongoose, { Mongoose } from "mongoose";
 
-const MONGODB_URI = process.env.MONGODB_URI || "mongodb://localhost:27017/wavestream"
+const MONGODB_URI =
+  process.env.MONGODB_URI || "mongodb://localhost:27017/wavestream";
 
-let cached = global.mongoose
-
-if (!cached) {
-  cached = global.mongoose = { conn: null, promise: null }
+declare global {
+  var mongooseCache: {
+    conn: Mongoose | null;
+    promise: Promise<Mongoose> | null;
+  };
 }
 
-async function dbConnect() {
+// Create or reuse global cache
+let cached = global.mongooseCache;
+
+if (!cached) {
+  cached = global.mongooseCache = { conn: null, promise: null };
+}
+
+async function dbConnect(): Promise<Mongoose> {
   if (cached.conn) {
-    return cached.conn
+    return cached.conn;
   }
 
   if (!cached.promise) {
     const opts = {
       bufferCommands: false,
-    }
+    };
 
-    cached.promise = mongoose.connect(MONGODB_URI, opts).then((mongoose) => {
-      return mongoose
-    })
+    cached.promise = mongoose.connect(MONGODB_URI, opts);
   }
 
-  cached.conn = await cached.promise
-  return cached.conn
+  cached.conn = await cached.promise;
+  return cached.conn;
 }
 
-export default dbConnect
+export default dbConnect;

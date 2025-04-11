@@ -1,81 +1,288 @@
-"use server"
+"use server";
 
-import { searchAudiobooks, getAudiobookDetails, getTopAudiobooks } from "@/lib/audiobook-api"
+import {
+  searchAudiobooks,
+  getAudiobookDetails,
+  getTopAudiobooks,
+} from "@/lib/audiobook-api";
+import { prisma } from "@/lib/prisma";
+import { getCurrentSession } from "@/lib/auth";
 
 export async function fetchAudiobookSearch(searchTerm: string) {
   try {
-    const results = await searchAudiobooks(searchTerm)
-    return { success: true, data: results }
+    const results = await searchAudiobooks(searchTerm);
+    return { success: true, data: results };
   } catch (error) {
-    console.error("Error in fetchAudiobookSearch:", error)
-    return { success: false, error: "Failed to search audiobooks" }
+    console.error("Error in fetchAudiobookSearch:", error);
+    return { success: false, error: "Failed to search audiobooks" };
   }
 }
 
 export async function fetchAudiobookDetails(audiobookId: string) {
   try {
-    const audiobook = await getAudiobookDetails(audiobookId)
-    return { success: true, data: audiobook }
+    const audiobook = await getAudiobookDetails(audiobookId);
+    return { success: true, data: audiobook };
   } catch (error) {
-    console.error("Error in fetchAudiobookDetails:", error)
-    return { success: false, error: "Failed to fetch audiobook details" }
+    console.error("Error in fetchAudiobookDetails:", error);
+    return { success: false, error: "Failed to fetch audiobook details" };
   }
 }
 
 export async function fetchTopAudiobooks(category?: string) {
   try {
-    const results = await getTopAudiobooks(category)
-    return { success: true, data: results }
+    const results = await getTopAudiobooks(category);
+    return { success: true, data: results };
   } catch (error) {
-    console.error("Error in fetchTopAudiobooks:", error)
-    return { success: false, error: "Failed to fetch top audiobooks" }
+    console.error("Error in fetchTopAudiobooks:", error);
+    return { success: false, error: "Failed to fetch top audiobooks" };
   }
 }
 
-// Client-side state management functions (these will be called from client components)
-// These are server actions but they're just simulating persistence
-// In a real app, these would interact with a database
-
 export type FavoriteAudiobook = {
-  id: string
-  title: string
-  image: string
-  author: string
-}
-
-// This is just a simulation - in a real app this would be stored in a database
-const favorites = new Map<string, FavoriteAudiobook>()
+  id: string;
+  title: string;
+  image: string;
+  author: string;
+};
 
 export async function toggleFavoriteAudiobook(audiobook: FavoriteAudiobook) {
-  if (favorites.has(audiobook.id)) {
-    favorites.delete(audiobook.id)
-    return { success: true, isFavorite: false }
-  } else {
-    favorites.set(audiobook.id, audiobook)
-    return { success: true, isFavorite: true }
+  try {
+    const session = await getCurrentSession();
+    if (!session) {
+      return {
+        success: false,
+        error: "Authentication required",
+        authRequired: true,
+      };
+    }
+
+    const userData = await prisma.userData.findUnique({
+      where: { userId: session.id },
+      include: { audiobooks: true },
+    });
+
+    if (!userData) {
+      return { success: false, error: "User data not found" };
+    }
+
+    // Check if audiobook exists in database, if not create it
+    let dbAudiobook = await prisma.audiobook.findFirst({
+      where: { externalId: audiobook.id },
+    });
+
+    if (!dbAudiobook) {
+      dbAudiobook = await prisma.audiobook.create({
+        data: {
+          title: audiobook.title,
+          author: audiobook.author,
+          imageUrl: audiobook.image,
+          externalId: audiobook.id,
+        },
+      });
+    }
+
+    // Check if audiobook is already in favorites
+    const isFavorite = userData.audiobooks.some(
+      (a: any) => a.id === dbAudiobook!.id
+    );
+
+    if (isFavorite) {
+      // Remove from favorites
+      await prisma.userData.update({
+        where: { id: userData.id },
+        data: {
+          audiobooks: {
+            disconnect: { id: dbAudiobook!.id },
+          },
+        },
+      });
+      return { success: true, isFavorite: false };
+    } else {
+      // Add to favorites
+      await prisma.userData.update({
+        where: { id: userData.id },
+        data: {
+          audiobooks: {
+            connect: { id: dbAudiobook!.id },
+          },
+        },
+      });
+      return { success: true, isFavorite: true };
+    }
+  } catch (error) {
+    console.error("Error in toggleFavoriteAudiobook:", error);
+    return { success: false, error: "Failed to toggle favorite status" };
   }
 }
 
 export async function checkIsFavorite(audiobookId: string) {
-  return { success: true, isFavorite: favorites.has(audiobookId) }
+  try {
+    const session = await getCurrentSession();
+    if (!session) {
+      return { success: true, isFavorite: false };
+    }
+
+    const dbAudiobook = await prisma.audiobook.findFirst({
+      where: { externalId: audiobookId },
+    });
+
+    if (!dbAudiobook) {
+      return { success: true, isFavorite: false };
+    }
+
+    const userData = await prisma.userData.findUnique({
+      where: { userId: session.id },
+      include: { audiobooks: true },
+    });
+
+    if (!userData) {
+      return { success: true, isFavorite: false };
+    }
+
+    const isFavorite = userData.audiobooks.some(
+      (a: any) => a.id === dbAudiobook.id
+    );
+    return { success: true, isFavorite };
+  } catch (error) {
+    console.error("Error in checkIsFavorite:", error);
+    return { success: false, error: "Failed to check favorite status" };
+  }
 }
 
 export async function getFavoriteAudiobooks() {
-  return { success: true, data: Array.from(favorites.values()) }
+  try {
+    const session = await getCurrentSession();
+    if (!session) {
+      return {
+        success: false,
+        error: "Authentication required",
+        authRequired: true,
+      };
+    }
+
+    const userData = await prisma.userData.findUnique({
+      where: { userId: session.id },
+      include: { audiobooks: true },
+    });
+
+    if (!userData) {
+      return { success: true, data: [] };
+    }
+
+    const favorites = userData.audiobooks.map((audiobook: any) => ({
+      id: audiobook.externalId || audiobook.id,
+      title: audiobook.title,
+      image: audiobook.imageUrl || "",
+      author: audiobook.author,
+    }));
+
+    return { success: true, data: favorites };
+  } catch (error) {
+    console.error("Error in getFavoriteAudiobooks:", error);
+    return { success: false, error: "Failed to fetch favorite audiobooks" };
+  }
 }
 
 // Progress tracking for audiobooks
-const progress = new Map<string, { position: number; chapter: number }>()
+export async function saveAudiobookProgress(
+  audiobookId: string,
+  position: number,
+  chapter: number
+) {
+  try {
+    const session = await getCurrentSession();
+    if (!session) {
+      return {
+        success: false,
+        error: "Authentication required",
+        authRequired: true,
+      };
+    }
 
-export async function saveAudiobookProgress(audiobookId: string, position: number, chapter: number) {
-  progress.set(audiobookId, { position, chapter })
-  return { success: true }
+    const userData = await prisma.userData.findUnique({
+      where: { userId: session.id },
+    });
+
+    if (!userData) {
+      return { success: false, error: "User data not found" };
+    }
+
+    // Find existing progress
+    const existingProgress = await prisma.progress.findFirst({
+      where: {
+        userDataId: userData.id,
+        itemId: audiobookId,
+        itemType: "audiobook",
+      },
+    });
+
+    if (existingProgress) {
+      // Update existing progress
+      await prisma.progress.update({
+        where: { id: existingProgress.id },
+        data: {
+          position,
+          chapter,
+          updatedAt: new Date(),
+        },
+      });
+    } else {
+      // Create new progress
+      await prisma.progress.create({
+        data: {
+          userDataId: userData.id,
+          itemId: audiobookId,
+          itemType: "audiobook",
+          position,
+          chapter,
+        },
+      });
+    }
+
+    return { success: true };
+  } catch (error) {
+    console.error("Error in saveAudiobookProgress:", error);
+    return { success: false, error: "Failed to save progress" };
+  }
 }
 
 export async function getAudiobookProgress(audiobookId: string) {
-  const savedProgress = progress.get(audiobookId)
-  return {
-    success: true,
-    data: savedProgress || { position: 0, chapter: 1 },
+  try {
+    const session = await getCurrentSession();
+    if (!session) {
+      return {
+        success: true,
+        data: { position: 0, chapter: 1 },
+      };
+    }
+
+    const userData = await prisma.userData.findUnique({
+      where: { userId: session.id },
+    });
+
+    if (!userData) {
+      return {
+        success: true,
+        data: { position: 0, chapter: 1 },
+      };
+    }
+
+    const progress = await prisma.progress.findFirst({
+      where: {
+        userDataId: userData.id,
+        itemId: audiobookId,
+        itemType: "audiobook",
+      },
+    });
+
+    return {
+      success: true,
+      data: progress
+        ? { position: progress.position, chapter: progress.chapter }
+        : { position: 0, chapter: 1 },
+    };
+  } catch (error) {
+    console.error("Error in getAudiobookProgress:", error);
+    return { success: false, error: "Failed to get progress" };
   }
 }

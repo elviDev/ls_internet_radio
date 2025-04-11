@@ -1,21 +1,20 @@
-import dbConnect from "../lib/mongoose"
-import User from "../models/User"
+import { prisma } from "../lib/prisma";
 
 async function main() {
   try {
-    console.log("Testing database connection...")
-
-    // Connect to database
-    await dbConnect()
+    console.log("Testing database connection with Prisma...");
 
     // Try to query the database
-    const userCount = await User.countDocuments()
-    console.log(`Database has ${userCount} users`)
+    const userCount = await prisma.user.count();
+    console.log(`Database has ${userCount} users`);
 
-    console.log("Database test completed successfully.")
+    console.log("Database test completed successfully.");
   } catch (error) {
-    console.error("Database connection test failed:", error)
+    console.error("Database connection test failed:", error);
+  } finally {
+    await prisma.$disconnect();
+    process.exit(0);
   }
 }
 
-main()
+main();

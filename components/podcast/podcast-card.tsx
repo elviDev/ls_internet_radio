@@ -53,7 +53,7 @@ export function PodcastCard({
       });
 
       if (result.success) {
-        setIsFavorite(result.isFavorite);
+        setIsFavorite(result.isFavorite!);
         toast({
           title: result.isFavorite
             ? "Added to favorites"

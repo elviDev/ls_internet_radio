@@ -1,22 +1,23 @@
-import { Suspense } from "react"
-import { AudiobookList } from "@/components/audiobook/audiobook-list"
-import { getTopAudiobooks, audiobookCategories } from "@/lib/audiobook-api"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Suspense } from "react";
+import { AudiobookList } from "@/components/audiobook/audiobook-list";
+import { getTopAudiobooks, audiobookCategories } from "@/lib/audiobook-api";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Skeleton } from "@/components/ui/skeleton";
 
 // This is a server component that fetches the initial data
 async function AudiobooksContent() {
   try {
     // Fetch top audiobooks for the initial view
-    const topAudiobooks = await getTopAudiobooks()
+    const topAudiobooks = await getTopAudiobooks();
 
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="max-w-4xl mx-auto text-center mb-12">
           <h1 className="text-4xl font-bold mb-4">Explore Our Audiobooks</h1>
           <p className="text-xl text-muted-foreground">
-            Immerse yourself in captivating stories narrated by talented voice artists. From bestselling novels to
-            thought-provoking non-fiction, our audiobook collection has something for everyone.
+            Immerse yourself in captivating stories narrated by talented voice
+            artists. From bestselling novels to thought-provoking non-fiction,
+            our audiobook collection has something for everyone.
           </p>
         </div>
 
@@ -29,15 +30,24 @@ async function AudiobooksContent() {
           </TabsList>
 
           <TabsContent value="featured" className="mt-0">
-            <AudiobookList initialAudiobooks={topAudiobooks} title="Featured Audiobooks" />
+            <AudiobookList
+              initialAudiobooks={topAudiobooks}
+              title="Featured Audiobooks"
+            />
           </TabsContent>
 
           <TabsContent value="popular" className="mt-0">
-            <AudiobookList initialAudiobooks={topAudiobooks} title="Popular Audiobooks" />
+            <AudiobookList
+              initialAudiobooks={topAudiobooks}
+              title="Popular Audiobooks"
+            />
           </TabsContent>
 
           <TabsContent value="new" className="mt-0">
-            <AudiobookList initialAudiobooks={topAudiobooks} title="New Releases" />
+            <AudiobookList
+              initialAudiobooks={topAudiobooks}
+              title="New Releases"
+            />
           </TabsContent>
 
           <TabsContent value="favorites" className="mt-0">
@@ -53,8 +63,10 @@ async function AudiobooksContent() {
                 <h2 className="text-2xl font-bold">{genre} Audiobooks</h2>
                 <AudiobookList
                   initialAudiobooks={topAudiobooks
-                    .filter((book) =>
-                      book.volumeInfo.categories?.some((category) => category.toLowerCase().includes(id.toLowerCase())),
+                    .filter((book: any) =>
+                      book.volumeInfo.categories?.some((category: any) =>
+                        category.toLowerCase().includes(id.toLowerCase())
+                      )
                     )
                     .slice(0, 5)}
                   showSearch={false}
@@ -65,17 +77,20 @@ async function AudiobooksContent() {
             ))}
         </div>
       </div>
-    )
+    );
   } catch (error) {
-    console.error("Error fetching audiobooks:", error)
+    console.error("Error fetching audiobooks:", error);
     return (
       <div className="container mx-auto px-4 py-12">
         <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 text-red-800 dark:text-red-200 p-4 rounded-lg">
           <h2 className="text-lg font-semibold">Error loading audiobooks</h2>
-          <p>We encountered an issue while loading the audiobook data. Please try again later.</p>
+          <p>
+            We encountered an issue while loading the audiobook data. Please try
+            again later.
+          </p>
         </div>
       </div>
-    )
+    );
   }
 }
 
@@ -102,7 +117,7 @@ function AudiobooksLoading() {
           ))}
       </div>
     </div>
-  )
+  );
 }
 
 export default function AudiobooksPage() {
@@ -110,5 +125,5 @@ export default function AudiobooksPage() {
     <Suspense fallback={<AudiobooksLoading />}>
       <AudiobooksContent />
     </Suspense>
-  )
+  );
 }
