@@ -1,20 +1,24 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { deleteUserSession, clearSessionCookie } from "@/lib/auth";
+
+// Utility to clear the session cookie
+function clearSessionCookie(response: NextResponse) {
+  response.cookies.set("auth_token", "", {
+    path: "/",
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    maxAge: 0, // Immediately expire the cookie
+  });
+}
 
 export async function POST(req: NextRequest) {
   try {
-    // Access cookies directly from the request object
+    // Optionally log or use the token (not needed anymore without Redis)
     const token = req.cookies.get("auth_token")?.value;
 
-    if (token) {
-      // Delete session from Redis
-      await deleteUserSession(token);
-    }
+    const response = NextResponse.json({ success: true });
+    clearSessionCookie(response);
 
-    // Clear the cookie
-    clearSessionCookie();
-
-    return NextResponse.json({ success: true });
+    return response;
   } catch (error) {
     console.error("Logout error:", error);
     return NextResponse.json(

@@ -1,10 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import {
-  getCurrentSession,
-  verifyPassword,
-  hashPassword,
-  invalidateUser,
-} from "@/lib/auth";
+import { getCurrentSession, verifyPassword, hashPassword } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: NextRequest) {
@@ -88,9 +83,6 @@ export async function PUT(req: NextRequest) {
       where: { id: session.id },
       data: updateData,
     });
-
-    // Invalidate user cache
-    await invalidateUser(session.id);
 
     return NextResponse.json({
       user: {
