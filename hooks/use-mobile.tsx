@@ -26,4 +26,3 @@ export function useMobile() {
 
   return isMobile
 }
-

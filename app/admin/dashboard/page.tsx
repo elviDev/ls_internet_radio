@@ -1,19 +1,9 @@
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import {
-  BarChart,
-  Mic,
-  Upload,
-  CalendarIcon,
-  Users,
-  Radio,
-  Headphones,
-  BookOpen,
-  Clock,
-} from "lucide-react";
-import Link from "next/link";
-import Image from "next/image";
+import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { BarChart, Mic, Upload, CalendarIcon, Users, Radio, Headphones, BookOpen, Clock } from "lucide-react"
+import Link from "next/link"
+import Image from "next/image"
 
 export default function AdminDashboardPage() {
   return (
@@ -93,11 +83,7 @@ export default function AdminDashboardPage() {
                   stroke="currentColor"
                   className="w-6 h-6"
                 >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5"
-                  />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
                 </svg>
               </Button>
             </div>
@@ -171,58 +157,42 @@ export default function AdminDashboardPage() {
           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Total Listeners
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Total Listeners</CardTitle>
                 <Users className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">12,543</div>
-                <p className="text-xs text-muted-foreground">
-                  +12% from last month
-                </p>
+                <p className="text-xs text-muted-foreground">+12% from last month</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Live Listeners
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Live Listeners</CardTitle>
                 <Radio className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">1,247</div>
-                <p className="text-xs text-muted-foreground">
-                  +5% from yesterday
-                </p>
+                <p className="text-xs text-muted-foreground">+5% from yesterday</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Podcast Downloads
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Podcast Downloads</CardTitle>
                 <Headphones className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">8,732</div>
-                <p className="text-xs text-muted-foreground">
-                  +18% from last month
-                </p>
+                <p className="text-xs text-muted-foreground">+18% from last month</p>
               </CardContent>
             </Card>
             <Card>
               <CardHeader className="flex flex-row items-center justify-between pb-2">
-                <CardTitle className="text-sm font-medium">
-                  Audiobook Plays
-                </CardTitle>
+                <CardTitle className="text-sm font-medium">Audiobook Plays</CardTitle>
                 <BookOpen className="h-4 w-4 text-muted-foreground" />
               </CardHeader>
               <CardContent>
                 <div className="text-2xl font-bold">3,451</div>
-                <p className="text-xs text-muted-foreground">
-                  +7% from last month
-                </p>
+                <p className="text-xs text-muted-foreground">+7% from last month</p>
               </CardContent>
             </Card>
           </div>
@@ -232,37 +202,156 @@ export default function AdminDashboardPage() {
               <CardHeader>
                 <CardTitle>Listener Analytics</CardTitle>
               </CardHeader>
-              <CardContent>
-                <div className="h-48 bg-muted rounded-lg"></div>
+              <CardContent className="h-[300px] flex items-center justify-center bg-muted/50 rounded-md">
+                <p className="text-muted-foreground">Analytics chart will be displayed here</p>
               </CardContent>
             </Card>
             <Card className="lg:col-span-3">
               <CardHeader>
-                <CardTitle>Top Podcasts</CardTitle>
+                <CardTitle>Top Content</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-48 bg-muted rounded-lg"></div>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
+                      <Headphones className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">Morning Jazz Sessions</h4>
+                      <p className="text-xs text-muted-foreground">2,345 plays</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
+                      <Mic className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">Tech Talk Weekly</h4>
+                      <p className="text-xs text-muted-foreground">1,987 plays</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
+                      <BookOpen className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">The Mystery Hour</h4>
+                      <p className="text-xs text-muted-foreground">1,756 plays</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
+                      <Radio className="h-6 w-6 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">Evening News Roundup</h4>
+                      <p className="text-xs text-muted-foreground">1,543 plays</p>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="lg:col-span-3">
+          </div>
+
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
               <CardHeader>
-                <CardTitle>Top Audiobooks</CardTitle>
+                <CardTitle>Recent Activities</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-48 bg-muted rounded-lg"></div>
+                <div className="space-y-4">
+                  <div className="border-l-2 border-purple-600 pl-4 py-1">
+                    <p className="text-sm">New podcast uploaded: "Tech Talk Weekly #45"</p>
+                    <p className="text-xs text-muted-foreground">Today, 10:30 AM</p>
+                  </div>
+                  <div className="border-l-2 border-muted pl-4 py-1">
+                    <p className="text-sm">Live broadcast started: "Morning Jazz Sessions"</p>
+                    <p className="text-xs text-muted-foreground">Today, 8:00 AM</p>
+                  </div>
+                  <div className="border-l-2 border-muted pl-4 py-1">
+                    <p className="text-sm">New event created: "Summer Music Festival"</p>
+                    <p className="text-xs text-muted-foreground">Yesterday, 4:15 PM</p>
+                  </div>
+                  <div className="border-l-2 border-muted pl-4 py-1">
+                    <p className="text-sm">User feedback received from John D.</p>
+                    <p className="text-xs text-muted-foreground">Yesterday, 2:30 PM</p>
+                  </div>
+                </div>
               </CardContent>
             </Card>
-            <Card className="lg:col-span-4">
+            <Card>
               <CardHeader>
-                <CardTitle>Upcoming Events</CardTitle>
+                <CardTitle>Upcoming Broadcasts</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="h-48 bg-muted rounded-lg"></div>
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">Evening News Roundup</h4>
+                      <p className="text-xs text-muted-foreground">Today, 6:00 PM</p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Edit
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">Tech Talk Weekly</h4>
+                      <p className="text-xs text-muted-foreground">Tomorrow, 10:00 AM</p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Edit
+                    </Button>
+                  </div>
+                  <div className="flex items-center gap-4">
+                    <div className="h-10 w-10 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-purple-600" />
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium">Weekend Music Mix</h4>
+                      <p className="text-xs text-muted-foreground">Saturday, 2:00 PM</p>
+                    </div>
+                    <Button variant="outline" size="sm">
+                      Edit
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Quick Actions</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-2 gap-4">
+                  <Button className="h-24 flex flex-col items-center justify-center gap-2">
+                    <Mic className="h-6 w-6" />
+                    <span>New Podcast</span>
+                  </Button>
+                  <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2">
+                    <Radio className="h-6 w-6" />
+                    <span>Schedule Broadcast</span>
+                  </Button>
+                  <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2">
+                    <CalendarIcon className="h-6 w-6" />
+                    <span>Create Event</span>
+                  </Button>
+                  <Button variant="outline" className="h-24 flex flex-col items-center justify-center gap-2">
+                    <Users className="h-6 w-6" />
+                    <span>Manage Users</span>
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
         </main>
       </div>
     </div>
-  );
+  )
 }

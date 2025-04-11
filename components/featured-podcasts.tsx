@@ -48,12 +48,12 @@ export default function FeaturedPodcasts() {
               <Image src={podcast.image || "/placeholder.svg"} alt={podcast.title} fill className="object-cover" />
               <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                 <div className="rounded-full bg-white p-3">
-                  <Play className="h-8 w-8 text-purple-700 fill-current" />
+                  <Play className="h-8 w-8 text-brand-700 fill-current" />
                 </div>
               </div>
             </div>
             <CardContent className="p-4">
-              <div className="text-xs font-medium text-purple-600 mb-1">{podcast.category}</div>
+              <div className="text-xs font-medium text-brand-600 mb-1">{podcast.category}</div>
               <h3 className="font-semibold text-lg mb-1 line-clamp-1">{podcast.title}</h3>
               <p className="text-sm text-muted-foreground mb-2">with {podcast.host}</p>
               <div className="text-xs text-muted-foreground">{podcast.duration}</div>
@@ -64,4 +64,3 @@ export default function FeaturedPodcasts() {
     </div>
   )
 }
-

@@ -1,9 +1,9 @@
-import Image from "next/image"
-import Link from "next/link"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Clock, Calendar, User } from "lucide-react"
+import Image from "next/image";
+import Link from "next/link";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Clock, Calendar, User } from "lucide-react";
 
 const programs = [
   {
@@ -105,9 +105,17 @@ const programs = [
       "Complete coverage of the week's biggest games, athlete interviews, and expert analysis of all your favorite sports.",
     episodes: 52,
   },
-]
+];
 
-const categories = ["All", "Talk Show", "Music", "Technology", "Business", "Interview", "Sports"]
+const categories = [
+  "All",
+  "Talk Show",
+  "Music",
+  "Technology",
+  "Business",
+  "Interview",
+  "Sports",
+];
 
 export default function ProgramsPage() {
   return (
@@ -115,24 +123,36 @@ export default function ProgramsPage() {
       <div className="max-w-4xl mx-auto text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">Our Programs</h1>
         <p className="text-xl text-muted-foreground">
-          Discover our diverse lineup of shows covering everything from music and technology to business and culture.
+          Discover our diverse lineup of shows covering everything from music
+          and technology to business and culture.
         </p>
       </div>
 
       <Tabs defaultValue="all" className="mb-12">
         <TabsList className="flex flex-wrap h-auto p-1 mb-8">
           {categories.map((category) => (
-            <TabsTrigger key={category} value={category === "All" ? "all" : category.toLowerCase()} className="mb-1">
+            <TabsTrigger
+              key={category}
+              value={category === "All" ? "all" : category.toLowerCase()}
+              className="mb-1"
+            >
               {category}
             </TabsTrigger>
           ))}
         </TabsList>
 
         {categories.map((category) => (
-          <TabsContent key={category} value={category === "All" ? "all" : category.toLowerCase()} className="mt-0">
+          <TabsContent
+            key={category}
+            value={category === "All" ? "all" : category.toLowerCase()}
+            className="mt-0"
+          >
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
               {programs
-                .filter((program) => category === "All" || program.category === category)
+                .filter(
+                  (program) =>
+                    category === "All" || program.category === category
+                )
                 .map((program) => (
                   <Link href={`/programs/${program.id}`} key={program.id}>
                     <Card className="overflow-hidden hover:shadow-md transition-all h-full">
@@ -144,18 +164,24 @@ export default function ProgramsPage() {
                           className="object-cover"
                         />
                         <div className="absolute top-3 left-3">
-                          <Badge className="bg-purple-600 hover:bg-purple-700">{program.category}</Badge>
+                          <Badge className="bg-brand-600 hover:bg-brand-700">
+                            {program.category}
+                          </Badge>
                         </div>
                       </div>
                       <CardContent className="p-5">
-                        <h3 className="font-semibold text-lg mb-1">{program.title}</h3>
+                        <h3 className="font-semibold text-lg mb-1">
+                          {program.title}
+                        </h3>
                         <div className="flex items-center mb-3 text-sm text-muted-foreground">
                           <User className="h-3 w-3 mr-1" />
                           <span>{program.host}</span>
                         </div>
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{program.description}</p>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                          {program.description}
+                        </p>
                         <div className="flex flex-wrap gap-2 mt-auto">
-                          <div className="text-xs font-medium bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 px-3 py-1 rounded-full inline-flex items-center">
+                          <div className="text-xs font-medium bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200 px-3 py-1 rounded-full inline-flex items-center">
                             <Clock className="h-3 w-3 mr-1" />
                             {program.schedule}
                           </div>
@@ -173,6 +199,5 @@ export default function ProgramsPage() {
         ))}
       </Tabs>
     </div>
-  )
+  );
 }
-

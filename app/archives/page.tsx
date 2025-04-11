@@ -1,12 +1,18 @@
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Card, CardContent } from "@/components/ui/card"
-import Image from "next/image"
-import Link from "next/link"
-import { Play, Clock, Calendar, Filter, Search, Download } from "lucide-react"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Card, CardContent } from "@/components/ui/card";
+import Image from "next/image";
+import Link from "next/link";
+import { Play, Clock, Calendar, Filter, Search, Download } from "lucide-react";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Badge } from "@/components/ui/badge";
 
 const archives = [
   {
@@ -17,7 +23,8 @@ const archives = [
     duration: "45 min",
     date: "Oct 10, 2023",
     category: "Technology",
-    description: "Exploring the latest trends and innovations in technology with industry experts.",
+    description:
+      "Exploring the latest trends and innovations in technology with industry experts.",
     type: "podcast",
   },
   {
@@ -28,7 +35,8 @@ const archives = [
     duration: "120 min",
     date: "Oct 8, 2023",
     category: "Talk Show",
-    description: "A special episode featuring interviews with top celebrities and entertainment news.",
+    description:
+      "A special episode featuring interviews with top celebrities and entertainment news.",
     type: "broadcast",
   },
   {
@@ -39,7 +47,8 @@ const archives = [
     duration: "58 min",
     date: "Oct 5, 2023",
     category: "Business",
-    description: "Interviews with successful entrepreneurs and business strategies for growth.",
+    description:
+      "Interviews with successful entrepreneurs and business strategies for growth.",
     type: "podcast",
   },
   {
@@ -50,7 +59,8 @@ const archives = [
     duration: "41 min",
     date: "Oct 3, 2023",
     category: "Audiobook",
-    description: "The first chapter of the bestselling thriller by J.R. Morgan.",
+    description:
+      "The first chapter of the bestselling thriller by J.R. Morgan.",
     type: "audiobook",
   },
   {
@@ -61,7 +71,8 @@ const archives = [
     duration: "37 min",
     date: "Sep 29, 2023",
     category: "Science",
-    description: "Breaking down complex scientific concepts into understandable explanations.",
+    description:
+      "Breaking down complex scientific concepts into understandable explanations.",
     type: "podcast",
   },
   {
@@ -72,7 +83,8 @@ const archives = [
     duration: "90 min",
     date: "Sep 25, 2023",
     category: "Entertainment",
-    description: "Coverage of the summer music festival with live interviews and performances.",
+    description:
+      "Coverage of the summer music festival with live interviews and performances.",
     type: "broadcast",
   },
   {
@@ -83,7 +95,8 @@ const archives = [
     duration: "62 min",
     date: "Sep 22, 2023",
     category: "Interview",
-    description: "A panel discussion with environmental experts on practical climate solutions.",
+    description:
+      "A panel discussion with environmental experts on practical climate solutions.",
     type: "podcast",
   },
   {
@@ -94,7 +107,8 @@ const archives = [
     duration: "6 hours total",
     date: "Sep 18, 2023",
     category: "Audiobook",
-    description: "A comprehensive guide to mindfulness practices for everyday life.",
+    description:
+      "A comprehensive guide to mindfulness practices for everyday life.",
     type: "audiobook",
   },
   {
@@ -105,7 +119,8 @@ const archives = [
     duration: "63 min",
     date: "Sep 15, 2023",
     category: "Sports",
-    description: "Analysis and discussions about the championship games with athlete interviews.",
+    description:
+      "Analysis and discussions about the championship games with athlete interviews.",
     type: "broadcast",
   },
   {
@@ -116,7 +131,8 @@ const archives = [
     duration: "48 min",
     date: "Sep 12, 2023",
     category: "Arts",
-    description: "Conversations with authors and writers about their creative process.",
+    description:
+      "Conversations with authors and writers about their creative process.",
     type: "podcast",
   },
   {
@@ -127,7 +143,8 @@ const archives = [
     duration: "55 min",
     date: "Sep 8, 2023",
     category: "Education",
-    description: "Exploring the mysteries and achievements of ancient civilizations.",
+    description:
+      "Exploring the mysteries and achievements of ancient civilizations.",
     type: "podcast",
   },
   {
@@ -138,10 +155,11 @@ const archives = [
     duration: "4 hours total",
     date: "Sep 5, 2023",
     category: "Audiobook",
-    description: "A thrilling mystery set in a haunted manor with a full cast audio production.",
+    description:
+      "A thrilling mystery set in a haunted manor with a full cast audio production.",
     type: "audiobook",
   },
-]
+];
 
 export default function ArchivesPage() {
   return (
@@ -149,14 +167,19 @@ export default function ArchivesPage() {
       <div className="max-w-4xl mx-auto text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">Audio Archives</h1>
         <p className="text-xl text-muted-foreground">
-          Access our complete library of past broadcasts, podcasts, and audiobooks.
+          Access our complete library of past broadcasts, podcasts, and
+          audiobooks.
         </p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mb-8">
         <div className="flex-1">
           <div className="relative">
-            <Input type="search" placeholder="Search archives..." className="pl-10 pr-4 py-2 w-full" />
+            <Input
+              type="search"
+              placeholder="Search archives..."
+              className="pl-10 pr-4 py-2 w-full"
+            />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <Search className="h-5 w-5 text-muted-foreground" />
             </div>
@@ -202,21 +225,38 @@ export default function ArchivesPage() {
               <Link href={`/archives/${item.id}`} key={item.id}>
                 <Card className="overflow-hidden transition-all hover:shadow-md h-full">
                   <div className="relative aspect-square">
-                    <Image src={item.image || "/placeholder.svg"} alt={item.title} fill className="object-cover" />
+                    <Image
+                      src={item.image || "/placeholder.svg"}
+                      alt={item.title}
+                      fill
+                      className="object-cover"
+                    />
                     <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                       <div className="rounded-full bg-white p-3">
-                        <Play className="h-8 w-8 text-purple-700 fill-current" />
+                        <Play className="h-8 w-8 text-brand-700 fill-current" />
                       </div>
                     </div>
-                    <div className="absolute top-3 left-3 bg-purple-600 text-white text-xs font-medium px-2 py-1 rounded-full">
-                      {item.type === "podcast" ? "Podcast" : item.type === "broadcast" ? "Broadcast" : "Audiobook"}
+                    <div className="absolute top-3 left-3 bg-brand-600 text-white text-xs font-medium px-2 py-1 rounded-full">
+                      {item.type === "podcast"
+                        ? "Podcast"
+                        : item.type === "broadcast"
+                        ? "Broadcast"
+                        : "Audiobook"}
                     </div>
                   </div>
                   <CardContent className="p-4">
-                    <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">{item.category}</div>
-                    <h3 className="font-semibold text-lg mb-1 line-clamp-1">{item.title}</h3>
-                    <p className="text-sm text-muted-foreground mb-2">with {item.host}</p>
-                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{item.description}</p>
+                    <div className="text-xs font-medium text-brand-600 dark:text-brand-400 mb-1">
+                      {item.category}
+                    </div>
+                    <h3 className="font-semibold text-lg mb-1 line-clamp-1">
+                      {item.title}
+                    </h3>
+                    <p className="text-sm text-muted-foreground mb-2">
+                      with {item.host}
+                    </p>
+                    <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                      {item.description}
+                    </p>
                     <div className="flex items-center justify-between text-xs text-muted-foreground">
                       <div className="flex items-center">
                         <Clock className="h-3 w-3 mr-1" />
@@ -242,20 +282,31 @@ export default function ArchivesPage() {
                 <Link href={`/archives/${item.id}`} key={item.id}>
                   <Card className="overflow-hidden transition-all hover:shadow-md h-full">
                     <div className="relative aspect-square">
-                      <Image src={item.image || "/placeholder.svg"} alt={item.title} fill className="object-cover" />
+                      <Image
+                        src={item.image || "/placeholder.svg"}
+                        alt={item.title}
+                        fill
+                        className="object-cover"
+                      />
                       <div className="absolute inset-0 bg-black bg-opacity-30 opacity-0 hover:opacity-100 transition-opacity flex items-center justify-center">
                         <div className="rounded-full bg-white p-3">
-                          <Play className="h-8 w-8 text-purple-700 fill-current" />
+                          <Play className="h-8 w-8 text-brand-700 fill-current" />
                         </div>
                       </div>
                     </div>
                     <CardContent className="p-4">
-                      <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">
+                      <div className="text-xs font-medium text-brand-600 dark:text-brand-400 mb-1">
                         {item.category}
                       </div>
-                      <h3 className="font-semibold text-lg mb-1 line-clamp-1">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">with {item.host}</p>
-                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">{item.description}</p>
+                      <h3 className="font-semibold text-lg mb-1 line-clamp-1">
+                        {item.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        with {item.host}
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-3 line-clamp-2">
+                        {item.description}
+                      </p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <div className="flex items-center">
                           <Clock className="h-3 w-3 mr-1" />
@@ -278,19 +329,31 @@ export default function ArchivesPage() {
             {archives
               .filter((item) => item.type === "broadcast")
               .map((item) => (
-                <Card key={item.id} className="overflow-hidden hover:shadow-md transition-all">
+                <Card
+                  key={item.id}
+                  className="overflow-hidden hover:shadow-md transition-all"
+                >
                   <div className="flex flex-col md:flex-row h-full">
                     <div className="relative w-full md:w-1/4 aspect-video md:aspect-square">
-                      <Image src={item.image || "/placeholder.svg"} alt={item.title} fill className="object-cover" />
+                      <Image
+                        src={item.image || "/placeholder.svg"}
+                        alt={item.title}
+                        fill
+                        className="object-cover"
+                      />
                     </div>
                     <CardContent className="p-6 w-full md:w-3/4">
                       <div className="flex flex-col md:flex-row md:items-center justify-between mb-4">
                         <div>
-                          <Badge className="mb-2 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          <Badge className="mb-2 bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200">
                             {item.category}
                           </Badge>
-                          <h3 className="text-xl font-semibold mb-1">{item.title}</h3>
-                          <p className="text-sm text-muted-foreground">with {item.host}</p>
+                          <h3 className="text-xl font-semibold mb-1">
+                            {item.title}
+                          </h3>
+                          <p className="text-sm text-muted-foreground">
+                            with {item.host}
+                          </p>
                         </div>
                         <div className="flex items-center mt-4 md:mt-0">
                           <div className="text-sm text-muted-foreground mr-4">
@@ -303,9 +366,11 @@ export default function ArchivesPage() {
                           </div>
                         </div>
                       </div>
-                      <p className="text-muted-foreground mb-6">{item.description}</p>
+                      <p className="text-muted-foreground mb-6">
+                        {item.description}
+                      </p>
                       <div className="flex flex-wrap gap-2">
-                        <Button className="bg-purple-600 hover:bg-purple-700">
+                        <Button className="bg-brand-600 hover:bg-brand-700">
                           <Play className="h-4 w-4 mr-2" /> Play
                         </Button>
                         <Button variant="outline">
@@ -324,18 +389,32 @@ export default function ArchivesPage() {
             {archives
               .filter((item) => item.type === "audiobook")
               .map((item) => (
-                <Card key={item.id} className="overflow-hidden hover:shadow-md transition-all">
+                <Card
+                  key={item.id}
+                  className="overflow-hidden hover:shadow-md transition-all"
+                >
                   <div className="flex h-full">
                     <div className="relative w-1/3">
-                      <Image src={item.image || "/placeholder.svg"} alt={item.title} fill className="object-cover" />
+                      <Image
+                        src={item.image || "/placeholder.svg"}
+                        alt={item.title}
+                        fill
+                        className="object-cover"
+                      />
                     </div>
                     <CardContent className="p-6 w-2/3">
-                      <div className="text-xs font-medium text-purple-600 dark:text-purple-400 mb-1">
+                      <div className="text-xs font-medium text-brand-600 dark:text-brand-400 mb-1">
                         {item.category}
                       </div>
-                      <h3 className="font-semibold text-lg mb-1">{item.title}</h3>
-                      <p className="text-sm text-muted-foreground mb-2">Narrated by {item.host}</p>
-                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{item.description}</p>
+                      <h3 className="font-semibold text-lg mb-1">
+                        {item.title}
+                      </h3>
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Narrated by {item.host}
+                      </p>
+                      <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                        {item.description}
+                      </p>
                       <div className="flex items-center justify-between text-xs text-muted-foreground mb-4">
                         <div className="flex items-center">
                           <Clock className="h-3 w-3 mr-1" />
@@ -346,7 +425,7 @@ export default function ArchivesPage() {
                           {item.date}
                         </div>
                       </div>
-                      <Button className="w-full bg-purple-600 hover:bg-purple-700">
+                      <Button className="w-full bg-brand-600 hover:bg-brand-700">
                         <Play className="h-4 w-4 mr-2" /> Listen Now
                       </Button>
                     </CardContent>
@@ -361,7 +440,11 @@ export default function ArchivesPage() {
         <Button variant="outline" size="sm">
           Previous
         </Button>
-        <Button variant="outline" size="sm" className="bg-purple-600 text-white hover:bg-purple-700">
+        <Button
+          variant="outline"
+          size="sm"
+          className="bg-brand-600 text-white hover:bg-brand-700"
+        >
           1
         </Button>
         <Button variant="outline" size="sm">
@@ -378,6 +461,5 @@ export default function ArchivesPage() {
         </Button>
       </div>
     </div>
-  )
+  );
 }
-

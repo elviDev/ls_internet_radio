@@ -1,7 +1,7 @@
-import Image from "next/image"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import Link from "next/link"
+import Image from "next/image";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import Link from "next/link";
 
 const programs = [
   {
@@ -28,7 +28,7 @@ const programs = [
     image: "/placeholder.svg?height=200&width=400",
     category: "Interview",
   },
-]
+];
 
 export default function FeaturedPrograms() {
   return (
@@ -37,15 +37,24 @@ export default function FeaturedPrograms() {
         <Link href={`/programs/${program.id}`} key={program.id}>
           <Card className="overflow-hidden hover:shadow-md transition-all h-full">
             <div className="relative h-40">
-              <Image src={program.image || "/placeholder.svg"} alt={program.title} fill className="object-cover" />
+              <Image
+                src={program.image || "/placeholder.svg"}
+                alt={program.title}
+                fill
+                className="object-cover"
+              />
               <div className="absolute top-3 left-3">
-                <Badge className="bg-purple-600 hover:bg-purple-700">{program.category}</Badge>
+                <Badge className="bg-brand-600 hover:bg-brand-700">
+                  {program.category}
+                </Badge>
               </div>
             </div>
             <CardContent className="p-5">
               <h3 className="font-semibold text-lg mb-1">{program.title}</h3>
-              <p className="text-sm text-muted-foreground mb-3">with {program.host}</p>
-              <div className="text-xs font-medium bg-purple-100 text-purple-800 px-3 py-1 rounded-full inline-block">
+              <p className="text-sm text-muted-foreground mb-3">
+                with {program.host}
+              </p>
+              <div className="text-xs font-medium bg-purple-100 text-brand-800 px-3 py-1 rounded-full inline-block">
                 {program.schedule}
               </div>
             </CardContent>
@@ -53,6 +62,5 @@ export default function FeaturedPrograms() {
         </Link>
       ))}
     </div>
-  )
+  );
 }
-

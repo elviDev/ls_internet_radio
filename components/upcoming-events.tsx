@@ -1,6 +1,6 @@
-import { Card, CardContent } from "@/components/ui/card"
-import { Calendar, Clock, MapPin } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card";
+import { Calendar, Clock, MapPin } from "lucide-react";
+import { Button } from "@/components/ui/button";
 
 const events = [
   {
@@ -27,15 +27,20 @@ const events = [
     location: "City Library Auditorium",
     category: "Book Launch",
   },
-]
+];
 
 export default function UpcomingEvents() {
   return (
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {events.map((event) => (
-        <Card key={event.id} className="overflow-hidden hover:shadow-md transition-all">
-          <div className="bg-gradient-to-r from-purple-600 to-fuchsia-600 p-4">
-            <span className="text-xs font-medium text-white bg-white/20 px-2 py-1 rounded-full">{event.category}</span>
+        <Card
+          key={event.id}
+          className="overflow-hidden hover:shadow-md transition-all"
+        >
+          <div className="bg-gradient-to-r from-brand-600 to-brand-800 p-4">
+            <span className="text-xs font-medium text-white bg-white/20 px-2 py-1 rounded-full">
+              {event.category}
+            </span>
           </div>
           <CardContent className="p-6">
             <h3 className="font-semibold text-lg mb-4">{event.title}</h3>
@@ -53,11 +58,12 @@ export default function UpcomingEvents() {
                 <span>{event.location}</span>
               </div>
             </div>
-            <Button className="w-full bg-purple-600 hover:bg-purple-700">Register Now</Button>
+            <Button className="w-full bg-brand-600 hover:bg-brand-700">
+              Register Now
+            </Button>
           </CardContent>
         </Card>
       ))}
     </div>
-  )
+  );
 }
-

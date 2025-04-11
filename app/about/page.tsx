@@ -1,10 +1,10 @@
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
-import { Badge } from "@/components/ui/badge"
-import { Radio, Headphones, BookOpen, Users, Award, Globe } from "lucide-react"
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Badge } from "@/components/ui/badge";
+import { Radio, Headphones, BookOpen, Users, Award, Globe } from "lucide-react";
 
 const team = [
   {
@@ -43,7 +43,7 @@ const team = [
     image: "/placeholder.svg?height=300&width=300&text=ER",
     bio: "Elena works with our hosts and voice talent to deliver compelling audio content. Her background in voice acting and audio production brings a unique perspective to our team.",
   },
-]
+];
 
 const milestones = [
   {
@@ -55,12 +55,14 @@ const milestones = [
   {
     year: "2019",
     title: "Live Broadcasting Begins",
-    description: "WaveStream expands to include live broadcasting capabilities, reaching listeners in real-time.",
+    description:
+      "WaveStream expands to include live broadcasting capabilities, reaching listeners in real-time.",
   },
   {
     year: "2020",
     title: "Mobile App Launch",
-    description: "The WaveStream progressive web app launches, allowing listeners to enjoy content on any device.",
+    description:
+      "The WaveStream progressive web app launches, allowing listeners to enjoy content on any device.",
   },
   {
     year: "2021",
@@ -71,14 +73,16 @@ const milestones = [
   {
     year: "2022",
     title: "Community Growth",
-    description: "WaveStream reaches 1 million registered users and expands its team to 25 full-time employees.",
+    description:
+      "WaveStream reaches 1 million registered users and expands its team to 25 full-time employees.",
   },
   {
     year: "2023",
     title: "Award-Winning Content",
-    description: "WaveStream wins multiple industry awards for podcast excellence and innovative audio experiences.",
+    description:
+      "WaveStream wins multiple industry awards for podcast excellence and innovative audio experiences.",
   },
-]
+];
 
 const stats = [
   { value: "5M+", label: "Monthly Listeners", icon: Users },
@@ -87,14 +91,16 @@ const stats = [
   { value: "24/7", label: "Live Broadcasting", icon: Radio },
   { value: "15+", label: "Industry Awards", icon: Award },
   { value: "Global", label: "Audience Reach", icon: Globe },
-]
+];
 
 export default function AboutPage() {
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-4xl mx-auto text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">About WaveStream</h1>
-        <p className="text-xl text-muted-foreground">Connecting the world through the power of audio since 2018.</p>
+        <p className="text-xl text-muted-foreground">
+          Connecting the world through the power of audio since 2018.
+        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 mb-16 items-center">
@@ -102,22 +108,29 @@ export default function AboutPage() {
           <h2 className="text-3xl font-bold mb-6">Our Story</h2>
           <div className="space-y-4 text-lg">
             <p>
-              WaveStream began with a simple idea: to create a platform where audio content could thrive in the digital
-              age. Founded in 2018 by Alex Rivera, we started as a small podcast network with big ambitions.
+              WaveStream began with a simple idea: to create a platform where
+              audio content could thrive in the digital age. Founded in 2018 by
+              Alex Rivera, we started as a small podcast network with big
+              ambitions.
             </p>
             <p>
-              Today, WaveStream has grown into a comprehensive audio platform offering podcasts, live broadcasts, and
-              audiobooks to millions of listeners worldwide. Our commitment to quality content and technological
-              innovation has made us a leader in digital audio entertainment.
+              Today, WaveStream has grown into a comprehensive audio platform
+              offering podcasts, live broadcasts, and audiobooks to millions of
+              listeners worldwide. Our commitment to quality content and
+              technological innovation has made us a leader in digital audio
+              entertainment.
             </p>
             <p>
-              What sets us apart is our community-focused approach. We believe in the power of audio to connect people,
-              share stories, and create meaningful experiences. Every feature we develop and show we produce is guided
-              by this philosophy.
+              What sets us apart is our community-focused approach. We believe
+              in the power of audio to connect people, share stories, and create
+              meaningful experiences. Every feature we develop and show we
+              produce is guided by this philosophy.
             </p>
           </div>
           <div className="mt-8">
-            <Button className="bg-purple-600 hover:bg-purple-700">Join Our Team</Button>
+            <Button className="bg-brand-600 hover:bg-brand-700">
+              Join Our Team
+            </Button>
           </div>
         </div>
         <div className="relative h-[400px] rounded-xl overflow-hidden">
@@ -134,8 +147,8 @@ export default function AboutPage() {
         {stats.map((stat, index) => (
           <Card key={index} className="text-center">
             <CardContent className="p-6">
-              <div className="mx-auto rounded-full bg-purple-100 dark:bg-purple-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
-                <stat.icon className="h-6 w-6 text-purple-600 dark:text-purple-300" />
+              <div className="mx-auto rounded-full bg-brand-100 dark:bg-brand-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
+                <stat.icon className="h-6 w-6 text-brand-600 dark:text-brand-300" />
               </div>
               <div className="text-3xl font-bold mb-1">{stat.value}</div>
               <p className="text-sm text-muted-foreground">{stat.label}</p>
@@ -145,18 +158,20 @@ export default function AboutPage() {
       </div>
 
       <div className="mb-16">
-        <h2 className="text-3xl font-bold text-center mb-12">Our Mission & Values</h2>
+        <h2 className="text-3xl font-bold text-center mb-12">
+          Our Mission & Values
+        </h2>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Card>
             <CardContent className="p-6 text-center">
-              <div className="mx-auto rounded-full bg-purple-100 dark:bg-purple-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
+              <div className="mx-auto rounded-full bg-brand-100 dark:bg-brand-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="h-6 w-6 text-purple-600 dark:text-purple-300"
+                  className="h-6 w-6 text-brand-600 dark:text-brand-300"
                 >
                   <path
                     strokeLinecap="round"
@@ -167,21 +182,22 @@ export default function AboutPage() {
               </div>
               <h3 className="text-xl font-semibold mb-3">Accessibility</h3>
               <p className="text-muted-foreground">
-                We believe audio content should be accessible to everyone. We're committed to creating an inclusive
-                platform that reaches listeners wherever they are.
+                We believe audio content should be accessible to everyone. We're
+                committed to creating an inclusive platform that reaches
+                listeners wherever they are.
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6 text-center">
-              <div className="mx-auto rounded-full bg-purple-100 dark:bg-purple-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
+              <div className="mx-auto rounded-full bg-brand-100 dark:bg-brand-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="h-6 w-6 text-purple-600 dark:text-purple-300"
+                  className="h-6 w-6 text-brand-600 dark:text-brand-300"
                 >
                   <path
                     strokeLinecap="round"
@@ -192,21 +208,22 @@ export default function AboutPage() {
               </div>
               <h3 className="text-xl font-semibold mb-3">Quality</h3>
               <p className="text-muted-foreground">
-                We're dedicated to delivering the highest quality audio experiences, from production values to content
-                curation and technical delivery.
+                We're dedicated to delivering the highest quality audio
+                experiences, from production values to content curation and
+                technical delivery.
               </p>
             </CardContent>
           </Card>
           <Card>
             <CardContent className="p-6 text-center">
-              <div className="mx-auto rounded-full bg-purple-100 dark:bg-purple-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
+              <div className="mx-auto rounded-full bg-brand-100 dark:bg-brand-900 p-3 w-14 h-14 flex items-center justify-center mb-4">
                 <svg
                   xmlns="http://www.w3.org/2000/svg"
                   fill="none"
                   viewBox="0 0 24 24"
                   strokeWidth={1.5}
                   stroke="currentColor"
-                  className="h-6 w-6 text-purple-600 dark:text-purple-300"
+                  className="h-6 w-6 text-brand-600 dark:text-brand-300"
                 >
                   <path
                     strokeLinecap="round"
@@ -217,8 +234,9 @@ export default function AboutPage() {
               </div>
               <h3 className="text-xl font-semibold mb-3">Community</h3>
               <p className="text-muted-foreground">
-                We foster connections between creators and listeners, building a vibrant community united by a shared
-                love of audio storytelling and discovery.
+                We foster connections between creators and listeners, building a
+                vibrant community united by a shared love of audio storytelling
+                and discovery.
               </p>
             </CardContent>
           </Card>
@@ -233,17 +251,23 @@ export default function AboutPage() {
             {milestones.map((milestone, index) => (
               <div
                 key={index}
-                className={`relative flex items-center ${index % 2 === 0 ? "flex-row" : "flex-row-reverse"} gap-8`}
+                className={`relative flex items-center ${
+                  index % 2 === 0 ? "flex-row" : "flex-row-reverse"
+                } gap-8`}
               >
                 <div className="w-1/2 flex justify-center">
-                  <div className="bg-purple-600 text-white text-xl font-bold rounded-full h-16 w-16 flex items-center justify-center z-10">
+                  <div className="bg-brand-600 text-white text-xl font-bold rounded-full h-16 w-16 flex items-center justify-center z-10">
                     {milestone.year}
                   </div>
                 </div>
                 <Card className="w-1/2">
                   <CardContent className="p-6">
-                    <h3 className="text-xl font-semibold mb-2">{milestone.title}</h3>
-                    <p className="text-muted-foreground">{milestone.description}</p>
+                    <h3 className="text-xl font-semibold mb-2">
+                      {milestone.title}
+                    </h3>
+                    <p className="text-muted-foreground">
+                      {milestone.description}
+                    </p>
                   </CardContent>
                 </Card>
               </div>
@@ -267,11 +291,20 @@ export default function AboutPage() {
               {team.map((member, index) => (
                 <Card key={index} className="overflow-hidden">
                   <div className="aspect-square relative">
-                    <Image src={member.image || "/placeholder.svg"} alt={member.name} fill className="object-cover" />
+                    <Image
+                      src={member.image || "/placeholder.svg"}
+                      alt={member.name}
+                      fill
+                      className="object-cover"
+                    />
                   </div>
                   <CardContent className="p-6">
-                    <h3 className="text-xl font-semibold mb-1">{member.name}</h3>
-                    <p className="text-purple-600 dark:text-purple-400 mb-4">{member.role}</p>
+                    <h3 className="text-xl font-semibold mb-1">
+                      {member.name}
+                    </h3>
+                    <p className="text-brand-600 dark:text-brand-400 mb-4">
+                      {member.role}
+                    </p>
                     <p className="text-muted-foreground">{member.bio}</p>
                   </CardContent>
                 </Card>
@@ -285,7 +318,9 @@ export default function AboutPage() {
                   <CardContent className="p-6">
                     <div className="flex items-center gap-4 mb-4">
                       <Avatar className="h-16 w-16">
-                        <AvatarImage src={`/placeholder.svg?height=100&width=100&text=Host${item}`} />
+                        <AvatarImage
+                          src={`/placeholder.svg?height=100&width=100&text=Host${item}`}
+                        />
                         <AvatarFallback>H{item}</AvatarFallback>
                       </Avatar>
                       <div>
@@ -301,7 +336,7 @@ export default function AboutPage() {
                             ][item - 1]
                           }
                         </h3>
-                        <p className="text-sm text-purple-600 dark:text-purple-400">
+                        <p className="text-sm text-brand-600 dark:text-brand-400">
                           {
                             [
                               "Morning Show Host",
@@ -353,18 +388,25 @@ export default function AboutPage() {
                   <CardContent className="p-6">
                     <div className="flex items-center gap-4 mb-4">
                       <Avatar className="h-16 w-16">
-                        <AvatarImage src={`/placeholder.svg?height=100&width=100&text=Tech${item}`} />
+                        <AvatarImage
+                          src={`/placeholder.svg?height=100&width=100&text=Tech${item}`}
+                        />
                         <AvatarFallback>T{item}</AvatarFallback>
                       </Avatar>
                       <div>
                         <h3 className="font-semibold">
                           {
-                            ["Ryan Park", "Aisha Patel", "Thomas Wright", "Zoe Chen", "Miguel Santos", "Leila Johnson"][
-                              item - 1
-                            ]
+                            [
+                              "Ryan Park",
+                              "Aisha Patel",
+                              "Thomas Wright",
+                              "Zoe Chen",
+                              "Miguel Santos",
+                              "Leila Johnson",
+                            ][item - 1]
                           }
                         </h3>
-                        <p className="text-sm text-purple-600 dark:text-purple-400">
+                        <p className="text-sm text-brand-600 dark:text-brand-400">
                           {
                             [
                               "Lead Developer",
@@ -401,15 +443,17 @@ export default function AboutPage() {
       <div className="bg-muted rounded-xl p-8 text-center">
         <h2 className="text-2xl font-bold mb-4">Join the WaveStream Family</h2>
         <p className="text-lg mb-6 max-w-2xl mx-auto">
-          We're always looking for passionate individuals to join our team. Whether you're a content creator, developer,
-          or audio enthusiast, we'd love to hear from you.
+          We're always looking for passionate individuals to join our team.
+          Whether you're a content creator, developer, or audio enthusiast, we'd
+          love to hear from you.
         </p>
         <div className="flex flex-wrap justify-center gap-4">
-          <Button className="bg-purple-600 hover:bg-purple-700">View Open Positions</Button>
+          <Button className="bg-brand-600 hover:bg-brand-700">
+            View Open Positions
+          </Button>
           <Button variant="outline">Contact Us</Button>
         </div>
       </div>
     </div>
-  )
+  );
 }
-

@@ -1,11 +1,17 @@
-import Image from "next/image"
-import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MapPin, Users } from "lucide-react"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import Image from "next/image";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
+import { Calendar, Clock, MapPin, Users } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 const events = [
   {
@@ -92,7 +98,7 @@ const events = [
     attendees: 215,
     isFeatured: false,
   },
-]
+];
 
 const categories = [
   "All",
@@ -102,7 +108,7 @@ const categories = [
   "Panel Discussion",
   "Workshop",
   "Live Broadcast",
-]
+];
 
 export default function EventsPage() {
   return (
@@ -110,14 +116,19 @@ export default function EventsPage() {
       <div className="max-w-4xl mx-auto text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">Upcoming Events</h1>
         <p className="text-xl text-muted-foreground">
-          Join us for live recordings, meet & greets, workshops, and special broadcasts.
+          Join us for live recordings, meet & greets, workshops, and special
+          broadcasts.
         </p>
       </div>
 
       <div className="flex flex-col md:flex-row gap-6 mb-8">
         <div className="flex-1">
           <div className="relative">
-            <Input type="search" placeholder="Search events..." className="pl-10 pr-4 py-2 w-full" />
+            <Input
+              type="search"
+              placeholder="Search events..."
+              className="pl-10 pr-4 py-2 w-full"
+            />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <svg
                 className="h-5 w-5 text-muted-foreground"
@@ -167,11 +178,21 @@ export default function EventsPage() {
           {events
             .filter((event) => event.isFeatured)
             .map((event) => (
-              <Card key={event.id} className="overflow-hidden hover:shadow-md transition-all">
+              <Card
+                key={event.id}
+                className="overflow-hidden hover:shadow-md transition-all"
+              >
                 <div className="relative h-48">
-                  <Image src={event.image || "/placeholder.svg"} alt={event.title} fill className="object-cover" />
+                  <Image
+                    src={event.image || "/placeholder.svg"}
+                    alt={event.title}
+                    fill
+                    className="object-cover"
+                  />
                   <div className="absolute top-3 left-3">
-                    <Badge className="bg-purple-600 hover:bg-purple-700">{event.category}</Badge>
+                    <Badge className="bg-brand-600 hover:bg-brand-700">
+                      {event.category}
+                    </Badge>
                   </div>
                 </div>
                 <CardContent className="p-6">
@@ -194,7 +215,9 @@ export default function EventsPage() {
                       <span>{event.attendees} attending</span>
                     </div>
                   </div>
-                  <Button className="w-full bg-purple-600 hover:bg-purple-700">Register Now</Button>
+                  <Button className="w-full bg-brand-600 hover:bg-brand-700">
+                    Register Now
+                  </Button>
                 </CardContent>
               </Card>
             ))}
@@ -206,7 +229,11 @@ export default function EventsPage() {
           {categories.map((category) => (
             <TabsTrigger
               key={category}
-              value={category === "All" ? "all" : category.toLowerCase().replace(" ", "-")}
+              value={
+                category === "All"
+                  ? "all"
+                  : category.toLowerCase().replace(" ", "-")
+              }
               className="mb-1"
             >
               {category}
@@ -217,14 +244,23 @@ export default function EventsPage() {
         {categories.map((category) => (
           <TabsContent
             key={category}
-            value={category === "All" ? "all" : category.toLowerCase().replace(" ", "-")}
+            value={
+              category === "All"
+                ? "all"
+                : category.toLowerCase().replace(" ", "-")
+            }
             className="mt-0"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {events
-                .filter((event) => category === "All" || event.category === category)
+                .filter(
+                  (event) => category === "All" || event.category === category
+                )
                 .map((event) => (
-                  <Card key={event.id} className="overflow-hidden hover:shadow-md transition-all">
+                  <Card
+                    key={event.id}
+                    className="overflow-hidden hover:shadow-md transition-all"
+                  >
                     <div className="flex flex-col md:flex-row h-full">
                       <div className="relative w-full md:w-1/3 h-48 md:h-auto">
                         <Image
@@ -235,11 +271,15 @@ export default function EventsPage() {
                         />
                       </div>
                       <CardContent className="p-6 w-full md:w-2/3">
-                        <Badge className="mb-2 bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 hover:bg-purple-200 dark:hover:bg-purple-800">
+                        <Badge className="mb-2 bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200 hover:bg-brand-200 dark:hover:bg-brand-800">
                           {event.category}
                         </Badge>
-                        <h3 className="font-semibold text-lg mb-2">{event.title}</h3>
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">{event.description}</p>
+                        <h3 className="font-semibold text-lg mb-2">
+                          {event.title}
+                        </h3>
+                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                          {event.description}
+                        </p>
                         <div className="space-y-2 mb-4">
                           <div className="flex items-center text-sm">
                             <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
@@ -254,7 +294,9 @@ export default function EventsPage() {
                             <span>{event.location}</span>
                           </div>
                         </div>
-                        <Button className="w-full bg-purple-600 hover:bg-purple-700">Register Now</Button>
+                        <Button className="w-full bg-brand-600 hover:bg-brand-700">
+                          Register Now
+                        </Button>
                       </CardContent>
                     </div>
                   </Card>
@@ -270,6 +312,5 @@ export default function EventsPage() {
         </Button>
       </div>
     </div>
-  )
+  );
 }
-
