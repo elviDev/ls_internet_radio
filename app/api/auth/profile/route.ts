@@ -1,5 +1,9 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { getCurrentSession, verifyPassword, hashPassword } from "@/lib/auth";
+import {
+  getCurrentSession,
+  verifyPassword,
+  hashPassword,
+} from "@/lib/auth/authUtils";
 import { prisma } from "@/lib/prisma";
 
 export async function PUT(req: NextRequest) {

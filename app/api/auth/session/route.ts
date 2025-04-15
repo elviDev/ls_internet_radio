@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getCurrentSession } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/auth/authUtils";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
@@ -18,7 +18,7 @@ export async function GET() {
         name: true,
         email: true,
         role: true,
-        profilePicture: true,
+        image: true,
       },
     });
 

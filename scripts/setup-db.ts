@@ -1,5 +1,5 @@
 import { prisma } from "../lib/prisma";
-import { hashPassword } from "../lib/auth";
+import { hashPassword } from "../lib/auth/authUtils";
 
 async function setupDatabase() {
   try {

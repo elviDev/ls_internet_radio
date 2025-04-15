@@ -1,5 +1,5 @@
 import { prisma } from "./prisma";
-import { hashPassword } from "./auth";
+import { hashPassword } from "./auth/authUtils";
 
 export async function initializeDatabase() {
   try {

@@ -6,7 +6,7 @@ import {
   getTopPodcasts,
 } from "@/lib/podcast-api";
 import { prisma } from "@/lib/prisma";
-import { getCurrentSession } from "@/lib/auth";
+import { getCurrentSession } from "@/lib/auth/authUtils";
 
 export async function fetchPodcastSearch(searchTerm: string) {
   try {
@@ -56,8 +56,8 @@ export async function toggleFavoritePodcast(podcast: FavoritePodcast) {
       };
     }
 
-    const userData = await prisma.userData.findUnique({
-      where: { userId: session.id },
+    const userData = await prisma.user.findUnique({
+      where: { id: session.id },
       include: { podcasts: true },
     });
 
@@ -160,7 +160,7 @@ export async function getFavoritePodcasts() {
       };
     }
 
-    const userData = await prisma.userData.findUnique({
+    const userData = await prisma.user.findUnique({
       where: { userId: session.id },
       include: { podcasts: true },
     });
