@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
 import { randomUUID } from "crypto";
-import { sendResetPasswordEmail } from "@/lib/email/resetPasswordEmaIl";
+import { sendVerificationEmail } from "@/lib/email/getVerificationEmail";
 
 const schema = z.object({
   email: z.string().email(),
@@ -15,28 +15,40 @@ export async function POST(req: Request) {
 
     const user = await prisma.user.findUnique({ where: { email } });
 
-    if (!user || !user.emailVerified) {
-      // Always respond the same to prevent email enumeration
+    if (!user) {
       return NextResponse.json({
-        message: "If this email exists, a reset link has been sent.",
+        message: "If this email exists, a verification link has been sent.",
       });
     }
 
-    const token = randomUUID();
-    const expires = new Date(Date.now() + 1000 * 60 * 30); // 30 mins
+    if (user.emailVerified) {
+      return NextResponse.json({ message: "Email is already verified." });
+    }
 
-    await prisma.passwordResetToken.create({
+    const token = randomUUID();
+    const expires = new Date(Date.now() + 1000 * 60 * 60); // 1 hour
+
+    // Clean up any existing token
+    await prisma.verificationToken.deleteMany({
+      where: {
+        userId: user.id,
+        type: "email_verification",
+      },
+    });
+
+    await prisma.verificationToken.create({
       data: {
         token,
         userId: user.id,
+        type: "email_verification",
         expiresAt: expires,
       },
     });
 
-    await sendResetPasswordEmail(email, token);
+    await sendVerificationEmail(email, token);
 
     return NextResponse.json({
-      message: "If this email exists, a reset link has been sent.",
+      message: "If this email exists, a verification link has been sent.",
     });
   } catch (err: any) {
     if (err instanceof z.ZodError) {

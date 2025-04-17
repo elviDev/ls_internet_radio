@@ -1,38 +1,33 @@
 import { NextResponse } from "next/server";
+import { z } from "zod";
 import { prisma } from "@/lib/prisma";
-import { hashPassword } from "@/lib/auth/authUtils";
+import { hashPassword } from "@/lib/hash";
 
-export const POST = async (req: Request) => {
+const schema = z.object({
+  token: z.string(),
+  newPassword: z.string().min(8, "Password must be at least 8 characters long"),
+});
+
+export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { token, newPassword } = body;
+    const { token, newPassword } = schema.parse(body);
 
-    // Find the user with the reset token
-    const user = await prisma.user.findUnique({
-      where: { resetPasswordToken: token },
+    const resetToken = await prisma.passwordResetToken.findUnique({
+      where: { token },
     });
 
-    if (!user || !user.resetPasswordTokenExpires) {
+    if (!resetToken || resetToken.expiresAt < new Date()) {
       return NextResponse.json(
-        { error: "Invalid or expired reset token" },
+        { error: "Token is invalid or expired" },
         { status: 400 }
       );
     }
 
-    const now = new Date();
-    if (user.resetPasswordTokenExpires < now) {
-      return NextResponse.json(
-        { error: "Reset token has expired" },
-        { status: 410 }
-      );
-    }
-
-    // Hash the new password
     const hashedPassword = await hashPassword(newPassword);
 
-    // Update user password and clear the reset token and expiration
     await prisma.user.update({
-      where: { id: user.id },
+      where: { id: resetToken.userId },
       data: {
         password: hashedPassword,
         resetPasswordToken: null,
@@ -40,11 +35,18 @@ export const POST = async (req: Request) => {
       },
     });
 
-    return NextResponse.json({ message: "Password reset successfully" });
-  } catch (error) {
+    await prisma.passwordResetToken.delete({ where: { token } });
+
+    return NextResponse.json({
+      message: "Password has been reset successfully",
+    });
+  } catch (err: any) {
+    if (err instanceof z.ZodError) {
+      return NextResponse.json({ error: err.errors }, { status: 400 });
+    }
     return NextResponse.json(
-      { error: "Failed to reset password" },
+      { error: "Something went wrong" },
       { status: 500 }
     );
   }
-};
+}

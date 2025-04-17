@@ -1,103 +1,111 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
+import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { prisma } from "@/lib/prisma";
-import { verifyToken } from "@/lib/auth/authUtils";
-import { getPresignedUrl } from "@/lib/aws/getPresignedUrl";
-import sharp from "sharp";
-import { randomUUID } from "crypto";
-export const GET = async (req: Request) => {
+import bcrypt from "bcryptjs";
+import { farewellEmail } from "@/lib/email/farewellEmail";
+import { sendEmail } from "@/lib/email/sendEmail";
+import { uploadToS3 } from "@/lib/storage/uploadToS3";
+
+export async function GET() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  return NextResponse.json(user);
+}
+
+export async function PATCH(req: NextRequest) {
+  const user = await getCurrentUser();
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const formData = await req.formData();
+
+  const name = formData.get("name")?.toString();
+  const file = formData.get("profileImage") as File | null;
+
+  let imageUrl: string | undefined;
+
+  if (file) {
+    const arrayBuffer = await file.arrayBuffer();
+    const buffer = Buffer.from(arrayBuffer);
+    const uploadResult = await uploadToS3(
+      buffer,
+      file.name,
+      file.type,
+      "profiles"
+    );
+    imageUrl = uploadResult.url;
+  }
+
+  const updatedUser = await prisma.user.update({
+    where: { id: user.id },
+    data: {
+      name: name || undefined,
+      profileImage: imageUrl || undefined,
+    },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      profileImage: true,
+    },
+  });
+
+  return NextResponse.json({ success: true, user: updatedUser });
+}
+
+export async function DELETE(req: NextRequest) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
+  const body = await req.json();
+  const { password } = body;
+
+  if (!password) {
+    return NextResponse.json(
+      { error: "Password is required" },
+      { status: 400 }
+    );
+  }
+
   try {
-    const token = req.headers.get("Authorization")?.split(" ")[1];
-
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: decoded.userId },
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        profileImage: true,
-        emailVerified: true,
-        createdAt: true,
-        updatedAt: true,
-      },
+    const existingUser = await prisma.user.findUnique({
+      where: { id: user.id },
     });
 
-    if (!user) {
+    if (!existingUser || !existingUser.password) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    return NextResponse.json(user);
-  } catch (error) {
-    return NextResponse.json(
-      { error: "Failed to fetch user data" },
-      { status: 500 }
-    );
-  }
-};
-
-export const PATCH = async (req: Request) => {
-  try {
-    const body = await req.json();
-
-    // Get the token from the request headers
-    const token = req.headers.get("Authorization")?.split(" ")[1];
-    if (!token) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    // Decode the token and get the user info
-    const decoded = verifyToken(token);
-    if (!decoded) {
-      return NextResponse.json({ error: "Invalid token" }, { status: 401 });
-    }
-
-    // Start with the body data (e.g., name, etc.)
-    let updatedUserData = { ...body };
-
-    // Check for updates in user profile image
-    if (body.profileImage) {
-      const buffer = Buffer.from(body.profileImage.split(",")[1], "base64"); // Assuming base64 encoding
-
-      // Process the image using Sharp (resize, compress, etc.)
-      const processedImage = await sharp(buffer)
-        .resize(300, 300) // Resize to 300x300 pixels
-        .jpeg({ quality: 90 }) // Compress to JPEG with 90% quality
-        .toBuffer();
-
-      // Generate a unique filename for the image
-      const fileName = `profile-${randomUUID()}.jpg`;
-
-      // Get a presigned URL for the image upload (instead of directly uploading, we get a presigned URL for security)
-      const presignedUrl = await getPresignedUrl(
-        fileName,
-        "image/jpeg",
-        processedImage
+    const passwordMatch = await bcrypt.compare(password, existingUser.password);
+    if (!passwordMatch) {
+      return NextResponse.json(
+        { error: "Incorrect password" },
+        { status: 401 }
       );
-
-      // Add the presigned URL to the updated user data for storing in the database
-      updatedUserData.profileImage = presignedUrl;
     }
 
-    // Update the user data in the database
-    const user = await prisma.user.update({
-      where: { id: decoded.userId },
-      data: updatedUserData,
+    const farewellPayload = farewellEmail({ name: existingUser.name! });
+
+    await sendEmail(existingUser.email, farewellPayload);
+
+    await prisma.user.delete({
+      where: { id: user.id },
     });
 
-    return NextResponse.json(user);
+    return NextResponse.json({ message: "Account deleted successfully" });
   } catch (error) {
+    console.error("[DELETE_USER]", error);
     return NextResponse.json(
-      { error: "Failed to update user" },
+      { error: "Something went wrong" },
       { status: 500 }
     );
   }
-};
+}

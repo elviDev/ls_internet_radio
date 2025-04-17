@@ -12,6 +12,8 @@ model User {
   email         String    @unique
   password      String
   name          String?
+  username      String    
+  bio           String?
   passwordResetTokens PasswordResetToken[]
   role          Role      @default(USER)
   profileImage  String?  
@@ -21,6 +23,8 @@ model User {
   verificationTokenExpires DateTime?
   resetPasswordToken        String?  @unique
   resetPasswordTokenExpires DateTime?
+  audiobooks Audiobook[] 
+  podcasts    Podcast[]
   comments      Comment[]
   reviews       Review[]
   bookmarks     Bookmark[]
@@ -65,17 +69,18 @@ model VerificationToken {
 model Audiobook {
   id           String   @id @default(cuid())
   title        String
-  author       String
   narrator     String
   description  String
   coverImage   String
   audioFile    String
-  transcription Transcription?
   duration     Int
   genre        String
   releaseDate  DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  transcription Transcription?
   comments     Comment[]
   reviews      Review[]
   bookmarks    Bookmark[]
@@ -93,12 +98,14 @@ model Podcast {
   description  String
   coverImage   String
   audioFile    String
-  transcription Transcription?
   duration     Int
   genre        String
   releaseDate  DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+  authorId    String
+  author      User      @relation(fields: [authorId], references: [id])
+  transcription Transcription?
   comments     Comment[]
   reviews      Review[]
   bookmarks    Bookmark[]
