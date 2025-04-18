@@ -64,23 +64,31 @@ model VerificationToken {
   createdAt  DateTime @default(now())
 }
 
+enum AudiobookStatus {
+  DRAFT
+  PUBLISHED
+}
 
 
 model Audiobook {
   id           String   @id @default(cuid())
   title        String
+  slug         String   @unique
   narrator     String
   description  String
   coverImage   String
-  audioFile    String
   duration     Int
   genre        String
   releaseDate  DateTime
+  status       AudiobookStatus @default(DRAFT)
+  playCount    Int      @default(0)
+  likeCount    Int      @default(0)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id])
+  authorId     String
+  author       User      @relation(fields: [authorId], references: [id])
   transcription Transcription?
+  chapters     Chapter[]
   comments     Comment[]
   reviews      Review[]
   bookmarks    Bookmark[]
@@ -89,6 +97,22 @@ model Audiobook {
   playlistItems PlaylistItem[]
   mediaHistories MediaHistory[]
 }
+
+
+model Chapter {
+  id          String   @id @default(cuid())
+  title       String
+  audioFile   String
+  duration    Int
+  trackNumber Int
+  isDraft     Boolean  @default(true)
+  playCount   Int      @default(0)
+  audiobookId String
+  audiobook   Audiobook @relation(fields: [audiobookId], references: [id])
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt()
+}
+
 
 model Podcast {
   id           String   @id @default(cuid())
@@ -132,17 +156,21 @@ model LiveBroadcast {
 }
 
 model Transcription {
-  id             String   @id @default(cuid())
-  content        String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  audiobookId    String?  @unique
-  audiobook      Audiobook? @relation(fields: [audiobookId], references: [id])
-  podcastId      String?  @unique
+  id           String     @id @default(cuid())
+  content      String     // Full transcription text or JSON structure
+  language     String     @default("en")
+  format       String?    // e.g., plain_text, json, srt, etc.
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  audiobook    Audiobook  @relation(fields: [audiobookId], references: [id])
+  audiobookId  String     @unique
+   podcastId      String?  @unique
   podcast        Podcast? @relation(fields: [podcastId], references: [id])
   liveBroadcastId String? @unique
   liveBroadcast  LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
 }
+
 
 model Comment {
   id             String   @id @default(cuid())
