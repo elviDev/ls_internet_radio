@@ -64,10 +64,25 @@ model VerificationToken {
   createdAt  DateTime @default(now())
 }
 
+
+model Genre {
+  id          String      @id @default(cuid())
+  name        String      @unique
+  slug        String      @unique
+  description String?
+  coverImage  String?
+  audiobooks  Audiobook[]
+  podcasts Podcast[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+}
+
+
 enum AudiobookStatus {
   DRAFT
   PUBLISHED
 }
+
 
 
 model Audiobook {
@@ -78,7 +93,6 @@ model Audiobook {
   description  String
   coverImage   String
   duration     Int
-  genre        String
   releaseDate  DateTime
   status       AudiobookStatus @default(DRAFT)
   playCount    Int      @default(0)
@@ -87,6 +101,8 @@ model Audiobook {
   updatedAt    DateTime @updatedAt
   authorId     String
   author       User      @relation(fields: [authorId], references: [id])
+  genreId     String
+  genre       Genre      @relation(fields: [genreId], references: [id])
   transcription Transcription?
   chapters     Chapter[]
   comments     Comment[]
@@ -123,12 +139,13 @@ model Podcast {
   coverImage   String
   audioFile    String
   duration     Int
-  genre        String
   releaseDate  DateTime
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   authorId    String
   author      User      @relation(fields: [authorId], references: [id])
+  genreId     String
+  genre       Genre      @relation(fields: [genreId], references: [id])
   transcription Transcription?
   comments     Comment[]
   reviews      Review[]

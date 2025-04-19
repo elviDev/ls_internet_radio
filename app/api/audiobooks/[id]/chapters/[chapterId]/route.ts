@@ -79,3 +79,43 @@ export const PATCH = async (
     );
   }
 };
+
+export async function DELETE(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+  }
+
+  const chapterId = params.id;
+
+  const chapter = await prisma.chapter.findUnique({
+    where: { id: chapterId },
+    include: {
+      audiobook: true,
+    },
+  });
+
+  if (!chapter) {
+    return NextResponse.json({ message: "Chapter not found" }, { status: 404 });
+  }
+
+  // Authorization check: only author or admin
+  if (chapter.audiobook.authorId !== user.id && user.role !== "ADMIN") {
+    return NextResponse.json({ message: "Forbidden" }, { status: 403 });
+  }
+
+  // Delete the audio file from S3 if present
+  const fileKey = chapter.audioFile?.split(`/${process.env.S3_BUCKET}/`)[1];
+  if (fileKey) {
+    await deleteFromS3(fileKey);
+  }
+
+  // Delete chapter from DB
+  await prisma.chapter.delete({ where: { id: chapterId } });
+
+  return NextResponse.json({ message: "Chapter deleted successfully" });
+}

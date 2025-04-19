@@ -1,22 +1,9 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { prisma } from "@/lib/prisma";
-import { z } from "zod";
-
-// Schema validation
-const audiobookSchema = z.object({
-  title: z.string().min(1, "Title is required"),
-  slug: z
-    .string()
-    .min(1, "Slug is required")
-    .regex(/^[a-z0-9-]+$/, "Slug must be lowercase, URL-safe, and hyphenated"),
-  narrator: z.string().min(1, "Narrator is required"),
-  description: z.string().min(1, "Description is required"),
-  coverImage: z.string().url("Cover image must be a valid URL"),
-  genre: z.string().min(1, "Genre is required"),
-  releaseDate: z.string().datetime("Invalid release date"),
-  duration: z.number().int().positive("Duration must be a positive integer"),
-});
+import slugify from "slugify";
+import { uploadToS3 } from "@/lib/storage/uploadToS3";
+import { AudiobookStatus } from "@prisma/client";
 
 export async function POST(req: Request) {
   try {
@@ -26,57 +13,67 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    const body = await req.json();
-    const parsed = audiobookSchema.safeParse(body);
+    const formData = await req.formData();
+    const title = formData.get("title")?.toString();
+    const narrator = formData.get("narrator")?.toString();
+    const description = formData.get("description")?.toString();
+    const genreId = formData.get("genreId")?.toString();
+    const releaseDate = formData.get("releaseDate")?.toString();
+    const coverImage = formData.get("coverImage") as File | null;
 
-    if (!parsed.success) {
-      return NextResponse.json(
-        {
-          error: "Validation failed",
-          issues: parsed.error.format(),
+    if (
+      title === undefined ||
+      narrator === undefined ||
+      description === undefined ||
+      genreId === undefined ||
+      coverImage === null
+    ) {
+      return new NextResponse("All fields are required", { status: 400 });
+    } else {
+      // validate genre
+      const genreExists = await prisma.genre.findUnique({
+        where: { id: genreId },
+      });
+      if (!genreExists) {
+        return new NextResponse("Invalid genre ID", { status: 400 });
+      }
+
+      const buffer = Buffer.from(await coverImage.arrayBuffer());
+      const upload = await uploadToS3(
+        buffer,
+        coverImage.name,
+        coverImage.type,
+        "audiobooks"
+      );
+
+      const slug = slugify(title, { lower: true, strict: true });
+      const existingSlug = await prisma.audiobook.findUnique({
+        where: { slug },
+      });
+      if (existingSlug) {
+        return new NextResponse("Slug already exists", { status: 409 });
+      }
+
+      const audiobook = await prisma.audiobook.create({
+        data: {
+          title,
+          slug,
+          narrator,
+          description,
+          coverImage: upload.url,
+          genreId,
+          duration: 0,
+          authorId: user.id,
+          releaseDate: new Date(),
+          status: AudiobookStatus.DRAFT,
         },
-        { status: 400 }
-      );
-    }
+      });
 
-    const {
-      title,
-      slug,
-      narrator,
-      description,
-      coverImage,
-      genre,
-      releaseDate,
-      duration,
-    } = parsed.data;
-
-    // Check for slug uniqueness
-    const existing = await prisma.audiobook.findUnique({ where: { slug } });
-    if (existing) {
       return NextResponse.json(
-        { error: "Slug already in use. Please choose a different one." },
-        { status: 409 }
+        { message: "Audiobook created in draft mode", data: audiobook },
+        { status: 201 }
       );
     }
-
-    const audiobook = await prisma.audiobook.create({
-      data: {
-        title,
-        slug,
-        narrator,
-        description,
-        coverImage,
-        genre,
-        duration,
-        releaseDate: new Date(releaseDate),
-        authorId: user.id,
-      },
-    });
-
-    return NextResponse.json(
-      { message: "Audiobook created in draft mode", data: audiobook },
-      { status: 201 }
-    );
   } catch (error) {
     console.error("Audiobook creation error:", error);
     return NextResponse.json(

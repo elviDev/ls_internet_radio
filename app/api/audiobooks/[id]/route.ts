@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 import { prisma } from "@/lib/prisma";
 import { z } from "zod";
+import { uploadToS3 } from "@/lib/storage/uploadToS3";
+import slugify from "slugify";
 
 const updateAudiobookSchema = z.object({
   title: z.string().min(1).optional(),
@@ -42,20 +44,36 @@ export async function PATCH(
     );
   }
 
-  const body = await req.json();
-  const parse = updateAudiobookSchema.safeParse(body);
+  // const body = await req.json();
+  // const parse = updateAudiobookSchema.safeParse(body);
 
-  if (!parse.success) {
-    return NextResponse.json(
-      { error: "Invalid data", issues: parse.error.format() },
-      { status: 400 }
-    );
-  }
+  const formData = await req.formData();
+  const title = formData.get("title")?.toString();
+  const narrator = formData.get("narrator")?.toString();
+  const description = formData.get("description")?.toString();
+  const genreId = formData.get("genreId")?.toString();
+  const releaseDate = formData.get("releaseDate")?.toString();
+  const coverImage = formData.get("coverImage") as File;
 
+  const buffer = Buffer.from(await coverImage.arrayBuffer());
+  const upload = await uploadToS3(
+    buffer,
+    coverImage.name,
+    coverImage.type,
+    "audiobooks"
+  );
+
+  const slug = slugify(title!, { lower: true, strict: true });
   const updated = await prisma.audiobook.update({
     where: { id },
     data: {
-      ...parse.data,
+      title: title,
+      narrator: narrator,
+      description: description,
+      genreId: genreId,
+      releaseDate: releaseDate,
+      coverImage: upload.url,
+      slug: slug,
       updatedAt: new Date(),
     },
   });
@@ -64,4 +82,69 @@ export async function PATCH(
     message: "Audiobook updated",
     audiobook: updated,
   });
+}
+
+export async function GET(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const { id } = params;
+    const { searchParams } = new URL(req.url);
+    const includeChapters = searchParams.get("withChapters") === "true";
+    const slug = searchParams.get("slug") || undefined;
+
+    const user = await getCurrentUser();
+
+    // Try to find by slug or ID
+    const audiobook = await prisma.audiobook.findFirst({
+      where: {
+        OR: [{ id }, { slug: slug }],
+      },
+      include: {
+        author: {
+          select: {
+            id: true,
+            name: true,
+            profileImage: true,
+          },
+        },
+        ...(includeChapters && {
+          chapters: {
+            orderBy: { trackNumber: "asc" },
+            select: {
+              id: true,
+              title: true,
+              trackNumber: true,
+              duration: true,
+              audioFile: true,
+            },
+          },
+        }),
+      },
+    });
+
+    if (!audiobook) {
+      return NextResponse.json(
+        { error: "Audiobook not found" },
+        { status: 404 }
+      );
+    }
+
+    const isOwner = user?.id === audiobook.authorId;
+    const isAdmin = user?.role === "ADMIN";
+
+    // If not published, check access
+    if (audiobook.status !== "PUBLISHED" && !isOwner && !isAdmin) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    }
+
+    return NextResponse.json({ data: audiobook });
+  } catch (error) {
+    console.error("Error fetching audiobook:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch audiobook" },
+      { status: 500 }
+    );
+  }
 }

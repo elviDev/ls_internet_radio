@@ -111,6 +111,7 @@ export default function PodcastDetailPage({
   const [isFavorite, setIsFavorite] = useState(false);
   const { toast } = useToast();
 
+  const { id } = params;
   useEffect(() => {
     const fetchData = async () => {
       try {
@@ -133,7 +134,7 @@ export default function PodcastDetailPage({
         // Check if this podcast is in favorites
         const favoriteResult = await checkIsFavorite(params.id);
         if (favoriteResult.success) {
-          setIsFavorite(favoriteResult.isFavorite);
+          setIsFavorite(favoriteResult.isFavorite!);
         }
       } catch (err) {
         setError("An unexpected error occurred");
@@ -144,7 +145,7 @@ export default function PodcastDetailPage({
     };
 
     fetchData();
-  }, [params.id]);
+  }, [id]);
 
   const handlePlayEpisode = (episode: any) => {
     setCurrentEpisode(episode);
