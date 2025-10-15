@@ -56,7 +56,7 @@ export default function SignInPage() {
                   <Input
                     id="email"
                     type="email"
-                    placeholder="name@example.com"
+                    placeholder="johndoe@example.com"
                     required
                   />
                 </div>
