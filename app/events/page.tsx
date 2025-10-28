@@ -1,11 +1,12 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, Clock, MapPin, Users, Heart, ExternalLink } from "lucide-react"
+import { Calendar, Clock, MapPin, Users, Heart, ExternalLink, Facebook, Twitter, Linkedin, Phone, Mail } from "lucide-react"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Input } from "@/components/ui/input"
 import {
@@ -27,13 +28,27 @@ interface Event {
   eventType: string
   location?: string
   venue?: string
+  address?: string
+  city?: string
+  state?: string
+  country?: string
   isVirtual: boolean
   virtualLink?: string
   isPaid: boolean
   ticketPrice?: number
+  currency?: string
   maxAttendees?: number
   currentAttendees: number
+  requiresRSVP: boolean
   imageUrl?: string
+  bannerUrl?: string
+  galleryUrls?: string
+  contactEmail?: string
+  contactPhone?: string
+  contactPerson?: string
+  facebookEvent?: string
+  twitterEvent?: string
+  linkedinEvent?: string
   organizer: {
     id: string
     firstName: string
@@ -56,6 +71,7 @@ const categories = [
 ]
 
 export default function EventsPage() {
+  const router = useRouter()
   const [events, setEvents] = useState<Event[]>([])
   const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
   const [loading, setLoading] = useState(true)
@@ -286,7 +302,14 @@ export default function EventsPage() {
                   )}
                 </div>
                 <CardContent className="p-6">
-                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">{event.title}</h3>
+                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">
+                    <button 
+                      onClick={() => router.push(`/events/${event.id}`)}
+                      className="text-left hover:text-purple-600 transition-colors"
+                    >
+                      {event.title}
+                    </button>
+                  </h3>
                   <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                     {event.description}
                   </p>
@@ -308,7 +331,12 @@ export default function EventsPage() {
                       ) : (
                         <>
                           <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span>{event.location || event.venue}</span>
+                          <span>
+                            {event.venue && event.city 
+                              ? `${event.venue}, ${event.city}${event.state ? `, ${event.state}` : ''}`
+                              : event.venue || event.location || event.city || "TBD"
+                            }
+                          </span>
                         </>
                       )}
                     </div>
@@ -319,15 +347,50 @@ export default function EventsPage() {
                         <span className="text-muted-foreground"> / {event.maxAttendees}</span>
                       )}
                     </div>
+                    {(event.facebookEvent || event.twitterEvent || event.linkedinEvent || event.contactEmail || event.contactPhone) && (
+                      <div className="flex items-center gap-2 text-sm mt-2 pt-2 border-t">
+                        {event.facebookEvent && (
+                          <a href={event.facebookEvent} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                            <Facebook className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.twitterEvent && (
+                          <a href={event.twitterEvent} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-600">
+                            <Twitter className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.linkedinEvent && (
+                          <a href={event.linkedinEvent} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900">
+                            <Linkedin className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.contactEmail && (
+                          <a href={`mailto:${event.contactEmail}`} className="text-gray-600 hover:text-gray-800">
+                            <Mail className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.contactPhone && (
+                          <a href={`tel:${event.contactPhone}`} className="text-gray-600 hover:text-gray-800">
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <Button 
-                    className="w-full bg-purple-600 hover:bg-purple-700"
-                    onClick={() => handleRegister(event.id)}
-                    disabled={registering === event.id || event.isRegistered}
-                  >
-                    {registering === event.id ? "Registering..." : 
-                     event.isRegistered ? "Registered" : "Register Now"}
-                  </Button>
+                  <div className="flex gap-2">
+                    <Button 
+                      className="flex-1 bg-purple-600 hover:bg-purple-700"
+                      onClick={() => router.push(`/events/${event.id}`)}
+                    >
+                      View Details
+                    </Button>
+                    {event.isRegistered && (
+                      <Badge variant="outline" className="text-green-600 border-green-600 px-3 py-1">
+                        <Heart className="h-3 w-3 mr-1 fill-current" />
+                        Registered
+                      </Badge>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
@@ -369,7 +432,12 @@ export default function EventsPage() {
                     )}
                   </div>
                   <h3 className="font-semibold text-lg mb-2 line-clamp-2">
-                    {event.title}
+                    <button 
+                      onClick={() => router.push(`/events/${event.id}`)}
+                      className="text-left hover:text-purple-600 transition-colors"
+                    >
+                      {event.title}
+                    </button>
                   </h3>
                   <p className="text-sm text-muted-foreground mb-4 line-clamp-2 flex-grow">
                     {event.description}
@@ -392,7 +460,12 @@ export default function EventsPage() {
                       ) : (
                         <>
                           <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                          <span>{event.location || event.venue}</span>
+                          <span>
+                            {event.venue && event.city 
+                              ? `${event.venue}, ${event.city}${event.state ? `, ${event.state}` : ''}`
+                              : event.venue || event.location || event.city || "TBD"
+                            }
+                          </span>
                         </>
                       )}
                     </div>
@@ -403,15 +476,50 @@ export default function EventsPage() {
                         <span className="text-muted-foreground"> / {event.maxAttendees}</span>
                       )}
                     </div>
+                    {(event.facebookEvent || event.twitterEvent || event.linkedinEvent || event.contactEmail || event.contactPhone) && (
+                      <div className="flex items-center gap-2 text-sm mt-2 pt-2 border-t">
+                        {event.facebookEvent && (
+                          <a href={event.facebookEvent} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:text-blue-800">
+                            <Facebook className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.twitterEvent && (
+                          <a href={event.twitterEvent} target="_blank" rel="noopener noreferrer" className="text-blue-400 hover:text-blue-600">
+                            <Twitter className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.linkedinEvent && (
+                          <a href={event.linkedinEvent} target="_blank" rel="noopener noreferrer" className="text-blue-700 hover:text-blue-900">
+                            <Linkedin className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.contactEmail && (
+                          <a href={`mailto:${event.contactEmail}`} className="text-gray-600 hover:text-gray-800">
+                            <Mail className="h-4 w-4" />
+                          </a>
+                        )}
+                        {event.contactPhone && (
+                          <a href={`tel:${event.contactPhone}`} className="text-gray-600 hover:text-gray-800">
+                            <Phone className="h-4 w-4" />
+                          </a>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <Button 
-                    className="w-full bg-purple-600 hover:bg-purple-700 mt-auto"
-                    onClick={() => handleRegister(event.id)}
-                    disabled={registering === event.id || event.isRegistered}
-                  >
-                    {registering === event.id ? "Registering..." : 
-                     event.isRegistered ? "Registered" : "Register Now"}
-                  </Button>
+                  <div className="flex gap-2 mt-auto">
+                    <Button 
+                      className="flex-1 bg-purple-600 hover:bg-purple-700"
+                      onClick={() => router.push(`/events/${event.id}`)}
+                    >
+                      View Details
+                    </Button>
+                    {event.isRegistered && (
+                      <Badge variant="outline" className="text-green-600 border-green-600 px-3 py-1">
+                        <Heart className="h-3 w-3 mr-1 fill-current" />
+                        Registered
+                      </Badge>
+                    )}
+                  </div>
                 </CardContent>
               </div>
             </Card>

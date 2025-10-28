@@ -10,19 +10,20 @@ export function adminOnly(
 
     // Check if user exists
     if (!user) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 403 });
+      return NextResponse.json({ error: "Authentication required" }, { status: 401 });
     }
 
     // Allow all approved staff members (any staff role)
-    const isStaff = Object.values(StaffRole).includes(user.role as StaffRole);
+    const staffRoles = ["ADMIN", "HOST", "CO_HOST", "PRODUCER", "SOUND_ENGINEER", "CONTENT_MANAGER", "TECHNICAL_SUPPORT"];
+    const isStaff = staffRoles.includes(user.role);
     
     if (!isStaff) {
-      return NextResponse.json({ message: "Staff access required" }, { status: 403 });
+      return NextResponse.json({ error: "Staff access required. Only staff members can access this resource." }, { status: 403 });
     }
     
     // Check if staff user is approved
     if (!user.isApproved) {
-      return NextResponse.json({ message: "Staff account not approved" }, { status: 403 });
+      return NextResponse.json({ error: "Your staff account is pending approval. Please contact an administrator." }, { status: 403 });
     }
 
     return handler(req, context);

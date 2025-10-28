@@ -67,7 +67,7 @@ export function AudiobookList({
     try {
       const result = await getFavoriteAudiobooks()
       if (result.success) {
-        setAudiobooks(result.data)
+        setAudiobooks(result.data!)
       } else {
         if (result.authRequired) {
           toast({
@@ -102,7 +102,7 @@ export function AudiobookList({
     try {
       const result = await fetchAudiobookSearch(searchTerm)
       if (result.success) {
-        setAudiobooks(result.data)
+        setAudiobooks(result.data!)
       } else {
         toast({
           title: "Search failed",

@@ -193,7 +193,7 @@ async function PodcastsContent() {
         </div>
       </div>
     );
-  } catch (error) {
+  } catch (error:any) {
     console.error("Error in PodcastsContent:", error);
     return (
       <div className="container mx-auto px-4 py-12">

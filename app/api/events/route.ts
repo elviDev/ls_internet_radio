@@ -14,7 +14,7 @@ export async function GET(request: NextRequest) {
 
     const where: any = {
       schedule: {
-        status: "PUBLISHED",
+        status: { not: "DRAFT" },
         startTime: {
           gte: new Date()
         }
@@ -61,6 +61,11 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true
             }
+          },
+          _count: {
+            select: {
+              registrations: true
+            }
           }
         }
       }),
@@ -76,15 +81,29 @@ export async function GET(request: NextRequest) {
       eventType: event.eventType,
       location: event.location,
       venue: event.venue,
+      address: event.address,
+      city: event.city,
+      state: event.state,
+      country: event.country,
       isVirtual: event.isVirtual,
       virtualLink: event.virtualLink,
       isPaid: event.isPaid,
       ticketPrice: event.ticketPrice,
+      currency: event.currency,
       maxAttendees: event.maxAttendees,
-      currentAttendees: event.currentAttendees,
+      currentAttendees: event._count.registrations,
+      requiresRSVP: event.requiresRSVP,
       imageUrl: event.imageUrl,
+      bannerUrl: event.bannerUrl,
+      galleryUrls: event.galleryUrls,
+      contactEmail: event.contactEmail,
+      contactPhone: event.contactPhone,
+      contactPerson: event.contactPerson,
+      facebookEvent: event.facebookEvent,
+      twitterEvent: event.twitterEvent,
+      linkedinEvent: event.linkedinEvent,
       organizer: event.organizerStaff,
-      isFeatured: event.currentAttendees > 50
+      isFeatured: event._count.registrations > 50
     }))
 
     return NextResponse.json({

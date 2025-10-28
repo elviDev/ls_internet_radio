@@ -53,6 +53,7 @@ const mainNavigation = [
   { name: "Audiobooks", href: "/dashboard/audiobooks", icon: BookOpen },
   { name: "Programs", href: "/dashboard/programs", icon: Mic },
   { name: "Schedules", href: "/dashboard/schedules", icon: Calendar },
+  { name: "Events", href: "/dashboard/events", icon: Calendar },
   { name: "Users", href: "/dashboard/users", icon: Users },
   { name: "Staff", href: "/dashboard/staff", icon: User },
 ];

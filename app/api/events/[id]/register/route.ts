@@ -28,6 +28,11 @@ export async function POST(
             startTime: true,
             status: true
           }
+        },
+        _count: {
+          select: {
+            registrations: true
+          }
         }
       }
     })
@@ -39,7 +44,7 @@ export async function POST(
       )
     }
 
-    if (event.schedule.status !== "PUBLISHED") {
+    if (event.schedule.status === "DRAFT" || event.schedule.status === "CANCELLED") {
       return NextResponse.json(
         { error: "Event is not available for registration" },
         { status: 400 }
@@ -53,7 +58,7 @@ export async function POST(
       )
     }
 
-    if (event.maxAttendees && event.currentAttendees >= event.maxAttendees) {
+    if (event.maxAttendees && event._count.registrations >= event.maxAttendees) {
       return NextResponse.json(
         { error: "Event is full" },
         { status: 400 }
@@ -99,33 +104,23 @@ export async function POST(
       )
     }
 
-    // Create registration and update attendee count
-    const [registration] = await prisma.$transaction([
-      prisma.eventRegistration.create({
-        data: {
-          userId: actualUser.id,
-          eventId: id,
-          registeredAt: new Date()
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              name: true,
-              email: true
-            }
+    // Create registration
+    const registration = await prisma.eventRegistration.create({
+      data: {
+        userId: actualUser.id,
+        eventId: id,
+        registeredAt: new Date()
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
           }
         }
-      }),
-      prisma.event.update({
-        where: { id },
-        data: {
-          currentAttendees: {
-            increment: 1
-          }
-        }
-      })
-    ])
+      }
+    })
 
     return NextResponse.json({
       message: "Successfully registered for event",
@@ -183,25 +178,15 @@ export async function DELETE(
       )
     }
 
-    // Delete registration and update attendee count
-    await prisma.$transaction([
-      prisma.eventRegistration.delete({
-        where: {
-          userId_eventId: {
-            userId: actualUser.id,
-            eventId: id
-          }
+    // Delete registration
+    await prisma.eventRegistration.delete({
+      where: {
+        userId_eventId: {
+          userId: actualUser.id,
+          eventId: id
         }
-      }),
-      prisma.event.update({
-        where: { id },
-        data: {
-          currentAttendees: {
-            decrement: 1
-          }
-        }
-      })
-    ])
+      }
+    })
 
     return NextResponse.json({
       message: "Successfully unregistered from event"

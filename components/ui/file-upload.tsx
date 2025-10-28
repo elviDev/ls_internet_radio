@@ -297,7 +297,7 @@ export function FileUpload({
       </div>
 
       <Dialog open={isOpen} onOpenChange={setIsOpen}>
-        <DialogContent className="max-w-4xl max-h-[85vh] overflow-hidden flex flex-col">
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle>Select or Upload {type === "audio" ? "Audio" : "Image"} File</DialogTitle>
           </DialogHeader>
@@ -384,7 +384,7 @@ export function FileUpload({
                   </div>
                 </div>
 
-                <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0">
+                <div className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 max-h-[50vh]">
                   {assetsLoading ? (
                     <div className="flex items-center justify-center h-48">
                       <Loader2 className="h-8 w-8 animate-spin" />
@@ -395,7 +395,7 @@ export function FileUpload({
                       <p>No {type} assets found</p>
                     </div>
                   ) : (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-4">
+                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4 pb-4 pr-2">
                       {filteredAssets.map((asset) => (
                         <Card
                           key={asset.id}

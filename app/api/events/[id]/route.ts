@@ -40,6 +40,11 @@ export async function GET(
             bio: true,
             profileImage: true
           }
+        },
+        _count: {
+          select: {
+            registrations: true
+          }
         }
       }
     })
@@ -87,20 +92,28 @@ export async function GET(
       virtualLink: event.virtualLink,
       isPaid: event.isPaid,
       ticketPrice: event.ticketPrice,
+      currency: event.currency,
       maxAttendees: event.maxAttendees,
-      currentAttendees: event.currentAttendees,
+      currentAttendees: event._count.registrations,
       requiresRSVP: event.requiresRSVP,
       imageUrl: event.imageUrl,
       bannerUrl: event.bannerUrl,
+      galleryUrls: event.galleryUrls,
       contactEmail: event.contactEmail,
       contactPhone: event.contactPhone,
       contactPerson: event.contactPerson,
+      facebookEvent: event.facebookEvent,
+      twitterEvent: event.twitterEvent,
+      linkedinEvent: event.linkedinEvent,
+      coOrganizers: event.coOrganizers,
+      sponsors: event.sponsors,
       organizer: event.organizerStaff,
       status: event.schedule.status,
+      isFeatured: event._count.registrations > 50,
       isRegistered
     }
 
-    return NextResponse.json({ event: transformedEvent })
+    return NextResponse.json(transformedEvent)
   } catch (error) {
     console.error("Error fetching event:", error)
     return NextResponse.json(
