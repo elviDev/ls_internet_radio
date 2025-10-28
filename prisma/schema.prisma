@@ -1,69 +1,135 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
-generator client {
-  provider = "prisma-client-js"
-}
-
 model User {
-  id            String    @id @default(cuid())
-  email         String    @unique
-  password      String
-  name          String?
-  username      String    
-  bio           String?
-  passwordResetTokens PasswordResetToken[]
-  role          Role      @default(USER)
-  profileImage  String?  
-  emailVerified Boolean  @default(false)
-  verificationToken String? @unique
-  verificationTokens VerificationToken[]
-  verificationTokenExpires DateTime?
-  resetPasswordToken        String?  @unique
+  id                        String                   @id @default(cuid())
+  email                     String                   @unique
+  password                  String
+  name                      String?
+  username                  String?
+  bio                       String?
+  profileImage              String?
+  emailVerified             Boolean                  @default(false)
+  verificationToken         String?                  @unique
+  verificationTokenExpires  DateTime?
+  resetPasswordToken        String?                  @unique
   resetPasswordTokenExpires DateTime?
-  audiobooks Audiobook[] 
-  podcasts    Podcast[]
-  comments      Comment[]
-  reviews       Review[]
-  bookmarks     Bookmark[]
-  playbackProgress PlaybackProgress[]
-  favorites     Favorite[]
-  notifications Notification[]
-  playlists     Playlist[]
-  mediaHistories MediaHistory[]
-  reports       Report[]  @relation("UserReports")
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  isActive                  Boolean                  @default(true)
+  isSuspended               Boolean                  @default(false)
+  suspendedAt               DateTime?
+  suspendedReason           String?
+  lastLoginAt               DateTime?
+  createdAt                 DateTime                 @default(now())
+  updatedAt                 DateTime                 @updatedAt
+  bookmarks                 Bookmark[]
+  comments                  Comment[]
+  favorites                 Favorite[]
+  acceptedInvitations       GuestInvitation[]        @relation("AcceptedBy")
+  mediaHistories            MediaHistory[]
+  notifications             Notification[]
+  playbackProgress          PlaybackProgress[]
+  playlists                 Playlist[]
+  podcastGuests             PodcastGuest[]
+  reports                   Report[]                 @relation("UserReports")
+  reviews                   Review[]
+  passwordResetTokens       UserPasswordResetToken[]
+  verificationTokens        UserVerificationToken[]
+  eventRegistrations        EventRegistration[]
 }
 
-
-
-enum Role {
-  USER
-  ADMIN
+model Staff {
+  id                        String               @id @default(cuid())
+  email                     String               @unique
+  password                  String
+  firstName                 String
+  lastName                  String
+  username                  String               @unique
+  bio                       String?
+  role                      StaffRole            @default(HOST)
+  department                String?
+  position                  String?
+  phone                     String?
+  address                   String?
+  emergencyContact          String?
+  profileImage              String?
+  emailVerified             Boolean              @default(false)
+  isActive                  Boolean              @default(true)
+  isApproved                Boolean              @default(false)
+  approvedAt                DateTime?
+  approvedBy                String?
+  requestedRole             StaffRole?
+  startDate                 DateTime?
+  endDate                   DateTime?
+  salary                    Float?
+  resetPasswordToken        String?              @unique
+  resetPasswordTokenExpires DateTime?
+  createdAt                 DateTime             @default(now())
+  updatedAt                 DateTime             @updatedAt
+  approvedAds               Advertisement[]      @relation("AdApprover")
+  uploadedAssets            Asset[]
+  audiobooks                Audiobook[]
+  broadcastStaff            BroadcastStaff[]
+  managedCampaigns          Campaign[]           @relation("CampaignManager")
+  organizedEvents           Event[]              @relation("EventOrganizer")
+  hostedBroadcasts          LiveBroadcast[]
+  passwordResetTokens       PasswordResetToken[]
+  podcasts                  Podcast[]
+  programs                  Program[]
+  assignedSchedules         Schedule[]           @relation("ScheduleAssignee")
+  createdSchedules          Schedule[]           @relation("ScheduleCreator")
+  publishedSchedules        Schedule[]           @relation("SchedulePublisher")
+  approver                  Staff?               @relation("StaffApprover", fields: [approvedBy], references: [id])
+  approvedStaff             Staff[]              @relation("StaffApprover")
+  favorites                 Favorite[]
+  playbackProgress          PlaybackProgress[]
+  verificationTokens        VerificationToken[]
+  createdArchives           Archive[]            @relation("ArchiveCreatedBy")
+  curatedArchives           Archive[]            @relation("ArchiveCuratedBy")
 }
 
 model PasswordResetToken {
   id        String   @id @default(cuid())
   token     String   @unique
   userId    String
-  user      User     @relation(fields: [userId], references: [id])
   expiresAt DateTime
   createdAt DateTime @default(now())
+  user      Staff    @relation(fields: [userId], references: [id])
 }
 
 model VerificationToken {
-  id         String   @id @default(cuid())
-  token      String   @unique
-  userId     String
-  user       User     @relation(fields: [userId], references: [id])
-  type       String   // "email_verification" | "password_reset"
-  expiresAt  DateTime
-  createdAt  DateTime @default(now())
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      Staff    @relation(fields: [userId], references: [id])
 }
 
+model UserPasswordResetToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
+
+model UserVerificationToken {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  userId    String
+  type      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+}
 
 model Genre {
   id          String      @id @default(cuid())
@@ -71,249 +137,947 @@ model Genre {
   slug        String      @unique
   description String?
   coverImage  String?
-  audiobooks  Audiobook[]
-  podcasts Podcast[]
   createdAt   DateTime    @default(now())
   updatedAt   DateTime    @updatedAt
+  audiobooks  Audiobook[]
+  podcasts    Podcast[]
+  programs    Program[]
 }
-
-
-enum AudiobookStatus {
-  DRAFT
-  PUBLISHED
-}
-
-
 
 model Audiobook {
-  id           String   @id @default(cuid())
-  title        String
-  slug         String   @unique
-  narrator     String
-  description  String
-  coverImage   String
-  duration     Int
-  releaseDate  DateTime
-  status       AudiobookStatus @default(DRAFT)
-  playCount    Int      @default(0)
-  likeCount    Int      @default(0)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  authorId     String
-  author       User      @relation(fields: [authorId], references: [id])
-  genreId     String
-  genre       Genre      @relation(fields: [genreId], references: [id])
-  transcription Transcription?
-  chapters     Chapter[]
-  comments     Comment[]
-  reviews      Review[]
-  bookmarks    Bookmark[]
+  id               String             @id @default(cuid())
+  title            String
+  slug             String             @unique
+  narrator         String
+  description      String
+  coverImage       String
+  duration         Int
+  releaseDate      DateTime
+  status           AudiobookStatus    @default(DRAFT)
+  playCount        Int                @default(0)
+  likeCount        Int                @default(0)
+  isbn             String?
+  publisher        String?
+  language         String             @default("en")
+  tags             String?
+  price            Float?
+  currency         String             @default("USD")
+  isExclusive      Boolean            @default(false)
+  publishedAt      DateTime?
+  archivedAt       DateTime?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  genreId          String
+  author           String?
+  createdById      String
+  createdBy        Staff              @relation(fields: [createdById], references: [id])
+  genre            Genre              @relation(fields: [genreId], references: [id])
+  bookmarks        Bookmark[]
+  chapters         Chapter[]
+  comments         Comment[]
+  favorites        Favorite[]
+  mediaHistories   MediaHistory[]
   playbackProgress PlaybackProgress[]
-  favorites    Favorite[]
-  playlistItems PlaylistItem[]
-  mediaHistories MediaHistory[]
+  playlistItems    PlaylistItem[]
+  reviews          Review[]
+  schedules        Schedule[]
+  transcription    Transcription?
+  archives         Archive[]
 }
 
-
 model Chapter {
-  id          String   @id @default(cuid())
+  id          String        @id @default(cuid())
   title       String
   audioFile   String
   duration    Int
   trackNumber Int
-  isDraft     Boolean  @default(true)
-  playCount   Int      @default(0)
+  status      ChapterStatus @default(DRAFT)
+  playCount   Int           @default(0)
+  description String?
+  transcript  String?
   audiobookId String
-  audiobook   Audiobook @relation(fields: [audiobookId], references: [id])
-  createdAt   DateTime  @default(now())
-  updatedAt   DateTime  @updatedAt()
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  audiobook   Audiobook     @relation(fields: [audiobookId], references: [id], onDelete: Cascade)
+
+  @@unique([audiobookId, trackNumber])
 }
 
-
 model Podcast {
-  id           String   @id @default(cuid())
-  title        String
-  host         String
-  guests       String?
-  description  String
-  coverImage   String
-  audioFile    String
-  duration     Int
-  releaseDate  DateTime
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  authorId    String
-  author      User      @relation(fields: [authorId], references: [id])
-  genreId     String
-  genre       Genre      @relation(fields: [genreId], references: [id])
-  transcription Transcription?
-  comments     Comment[]
-  reviews      Review[]
-  bookmarks    Bookmark[]
+  id               String             @id @default(cuid())
+  title            String
+  host             String
+  guests           String?
+  description      String
+  coverImage       String?
+  audioFile        String?            // Made optional as audio will be in episodes
+  duration         Int?               // Made optional as it will be calculated from episodes
+  releaseDate      DateTime
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  authorId         String
+  genreId          String
+  tags             String?
+  status           PodcastStatus      @default(DRAFT)
+  episodes         PodcastEpisode[]
+  bookmarks        Bookmark[]
+  comments         Comment[]
+  favorites        Favorite[]
+  guestInvitations GuestInvitation[]
+  mediaHistories   MediaHistory[]
   playbackProgress PlaybackProgress[]
-  favorites    Favorite[]
-  playlistItems PlaylistItem[]
-  mediaHistories MediaHistory[]
+  playlistItems    PlaylistItem[]
+  author           Staff              @relation(fields: [authorId], references: [id])
+  genre            Genre              @relation(fields: [genreId], references: [id])
+  podcastGuests    PodcastGuest[]
+  reviews          Review[]
+  schedules        Schedule[]
+  transcription    Transcription?
+  archives         Archive[]
+}
+
+model PodcastEpisode {
+  id               String             @id @default(cuid())
+  podcastId        String
+  title            String
+  description      String?
+  episodeNumber    Int
+  audioFile        String
+  duration         Int
+  publishedAt      DateTime?
+  status           EpisodeStatus      @default(DRAFT)
+  transcript       String?            // Manual transcript
+  transcriptFile   String?            // Uploaded transcript file
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  podcast          Podcast            @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  comments         Comment[]
+  favorites        Favorite[]
+  playbackProgress PlaybackProgress[]
+  archives         Archive[]
+  
+  @@unique([podcastId, episodeNumber])
+  @@index([podcastId])
+}
+
+model Asset {
+  id           String          @id @default(cuid())
+  filename     String
+  originalName String
+  mimeType     String
+  size         Int
+  type         AssetType
+  url          String
+  description  String?
+  tags         String?
+  uploadedById String
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  uploadedBy   Staff           @relation(fields: [uploadedById], references: [id])
+  broadcasts   LiveBroadcast[] @relation("BroadcastBanner")
 }
 
 model LiveBroadcast {
-  id            String   @id @default(cuid())
-  title         String
-  host          String
-  description   String
-  streamUrl     String
-  transcription Transcription?
-  startTime     DateTime
-  endTime       DateTime?
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-  comments      Comment[]
-  playbackProgress PlaybackProgress[]
-  mediaHistories MediaHistory[]
+  id                   String             @id @default(cuid())
+  title                String
+  slug                 String             @unique
+  description          String
+  streamUrl            String?
+  status               BroadcastStatus    @default(SCHEDULED)
+  startTime            DateTime
+  endTime              DateTime?
+  hostId               String
+  bannerId             String?
+  programId            String?
+  recordingUrl         String?
+  autoRecord           Boolean            @default(false)
+  chatEnabled          Boolean            @default(true)
+  chatModeration       Boolean            @default(true)
+  allowGuests          Boolean            @default(true)
+  maxListeners         Int?               @default(1000)
+  quality              String             @default("HD")
+  notificationsEnabled Boolean            @default(true)
+  emailNotifications   Boolean            @default(true)
+  smsNotifications     Boolean            @default(false)
+  slackNotifications   Boolean            @default(false)
+  recordingFormat      String             @default("MP3")
+  streamDelay          Int                @default(5)
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  guests               BroadcastGuest[]
+  staff                BroadcastStaff[]
+  comments             Comment[]
+  banner               Asset?             @relation("BroadcastBanner", fields: [bannerId], references: [id])
+  hostUser             Staff              @relation(fields: [hostId], references: [id])
+  program              Program?           @relation(fields: [programId], references: [id])
+  mediaHistories       MediaHistory[]
+  playbackProgress     PlaybackProgress[]
+  schedules            Schedule[]
+  transcription        Transcription?
+  episode              ProgramEpisode?
+  archives             Archive[]
+}
+
+model BroadcastStaff {
+  id          String        @id @default(cuid())
+  broadcastId String
+  userId      String
+  role        BroadcastRole
+  isActive    Boolean       @default(true)
+  joinedAt    DateTime      @default(now())
+  leftAt      DateTime?
+  notes       String?
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+  broadcast   LiveBroadcast @relation(fields: [broadcastId], references: [id], onDelete: Cascade)
+  user        Staff         @relation(fields: [userId], references: [id])
+
+  @@unique([broadcastId, userId, role])
 }
 
 model Transcription {
-  id           String     @id @default(cuid())
-  content      String     // Full transcription text or JSON structure
-  language     String     @default("en")
-  format       String?    // e.g., plain_text, json, srt, etc.
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
-
-  audiobook    Audiobook  @relation(fields: [audiobookId], references: [id])
-  audiobookId  String     @unique
-   podcastId      String?  @unique
-  podcast        Podcast? @relation(fields: [podcastId], references: [id])
-  liveBroadcastId String? @unique
-  liveBroadcast  LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
+  id              String         @id @default(cuid())
+  content         String
+  language        String         @default("en")
+  format          String?
+  isEditable      Boolean        @default(true)
+  lastEditedBy    String?
+  lastEditedAt    DateTime?
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+  audiobookId     String?        @unique
+  podcastId       String?        @unique
+  liveBroadcastId String?        @unique
+  audiobook       Audiobook?     @relation(fields: [audiobookId], references: [id])
+  liveBroadcast   LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
+  podcast         Podcast?       @relation(fields: [podcastId], references: [id])
 }
 
-
 model Comment {
-  id             String   @id @default(cuid())
-  content        String
-  user           User     @relation(fields: [userId], references: [id])
-  userId         String
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
-  audiobookId    String?
-  audiobook      Audiobook? @relation(fields: [audiobookId], references: [id])
-  podcastId      String?
-  podcast        Podcast? @relation(fields: [podcastId], references: [id])
-  liveBroadcastId String?
-  liveBroadcast  LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
-  parentId       String?
-  parent         Comment?  @relation("CommentReplies", fields: [parentId], references: [id])
-  replies        Comment[] @relation("CommentReplies")
+  id               String          @id @default(cuid())
+  content          String
+  userId           String
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+  audiobookId      String?
+  podcastId        String?
+  podcastEpisodeId String?
+  liveBroadcastId  String?
+  archiveId        String?
+  parentId         String?
+  audiobook        Audiobook?      @relation(fields: [audiobookId], references: [id])
+  liveBroadcast    LiveBroadcast?  @relation(fields: [liveBroadcastId], references: [id])
+  archive          Archive?        @relation(fields: [archiveId], references: [id])
+  parent           Comment?        @relation("CommentReplies", fields: [parentId], references: [id])
+  replies          Comment[]       @relation("CommentReplies")
+  podcast          Podcast?        @relation(fields: [podcastId], references: [id])
+  podcastEpisode   PodcastEpisode? @relation(fields: [podcastEpisodeId], references: [id])
+  user             User            @relation(fields: [userId], references: [id])
 }
 
 model Review {
-  id           String   @id @default(cuid())
-  rating       Int
-  comment      String?
-  user         User     @relation(fields: [userId], references: [id])
-  userId       String
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  audiobookId  String?
-  audiobook    Audiobook? @relation(fields: [audiobookId], references: [id])
-  podcastId    String?
-  podcast      Podcast? @relation(fields: [podcastId], references: [id])
+  id          String     @id @default(cuid())
+  rating      Int
+  comment     String?
+  userId      String
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+  audiobookId String?
+  podcastId   String?
+  archiveId   String?
+  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
+  podcast     Podcast?   @relation(fields: [podcastId], references: [id])
+  archive     Archive?   @relation(fields: [archiveId], references: [id])
+  user        User       @relation(fields: [userId], references: [id])
+
   @@unique([userId, audiobookId])
   @@unique([userId, podcastId])
+  @@unique([userId, archiveId])
 }
 
 model Bookmark {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id])
+  id          String     @id @default(cuid())
   userId      String
   audiobookId String?
-  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
   podcastId   String?
-  podcast     Podcast? @relation(fields: [podcastId], references: [id])
+  archiveId   String?
   position    Int
-  createdAt   DateTime @default(now())
+  createdAt   DateTime   @default(now())
+  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
+  podcast     Podcast?   @relation(fields: [podcastId], references: [id])
+  archive     Archive?   @relation(fields: [archiveId], references: [id])
+  user        User       @relation(fields: [userId], references: [id])
 }
 
 model PlaybackProgress {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  audiobookId String?
-  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
-  podcastId   String?
-  podcast     Podcast? @relation(fields: [podcastId], references: [id])
-  liveBroadcastId String?
-  liveBroadcast LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
-  position    Int
-  updatedAt   DateTime @updatedAt
+  id               String          @id @default(cuid())
+  userId           String?
+  staffId          String?
+  audiobookId      String?
+  podcastId        String?
+  podcastEpisodeId String?
+  liveBroadcastId  String?
+  archiveId        String?
+  chapterId        String?
+  position         Int
+  updatedAt        DateTime        @updatedAt
+  audiobook        Audiobook?      @relation(fields: [audiobookId], references: [id])
+  liveBroadcast    LiveBroadcast?  @relation(fields: [liveBroadcastId], references: [id])
+  podcast          Podcast?        @relation(fields: [podcastId], references: [id])
+  podcastEpisode   PodcastEpisode? @relation(fields: [podcastEpisodeId], references: [id])
+  archive          Archive?        @relation(fields: [archiveId], references: [id])
+  user             User?           @relation(fields: [userId], references: [id])
+  staff            Staff?          @relation(fields: [staffId], references: [id])
+
+  @@unique([userId, audiobookId])
+  @@unique([userId, podcastId])
+  @@unique([userId, archiveId])
+  @@unique([staffId, audiobookId])
+  @@unique([staffId, podcastId])
+  @@unique([staffId, archiveId])
 }
 
 model Favorite {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  audiobookId String?
-  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
-  podcastId   String?
-  podcast     Podcast? @relation(fields: [podcastId], references: [id])
-  createdAt   DateTime @default(now())
+  id               String          @id @default(cuid())
+  userId           String?
+  staffId          String?
+  audiobookId      String?
+  podcastId        String?
+  podcastEpisodeId String?
+  archiveId        String?
+  createdAt        DateTime        @default(now())
+  audiobook        Audiobook?      @relation(fields: [audiobookId], references: [id])
+  podcast          Podcast?        @relation(fields: [podcastId], references: [id])
+  podcastEpisode   PodcastEpisode? @relation(fields: [podcastEpisodeId], references: [id])
+  archive          Archive?        @relation(fields: [archiveId], references: [id])
+  user             User?           @relation(fields: [userId], references: [id])
+  staff            Staff?          @relation(fields: [staffId], references: [id])
+
   @@unique([userId, audiobookId])
   @@unique([userId, podcastId])
+  @@unique([userId, podcastEpisodeId])
+  @@unique([userId, archiveId])
+  @@unique([staffId, audiobookId])
+  @@unique([staffId, podcastId])
+  @@unique([staffId, podcastEpisodeId])
+  @@unique([staffId, archiveId])
 }
 
 model Notification {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  message     String
-  link        String?
-  isRead      Boolean   @default(false)
-  createdAt   DateTime  @default(now())
+  id        String   @id @default(cuid())
+  userId    String
+  message   String
+  link      String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
 }
 
 model Playlist {
-  id        String    @id @default(cuid())
+  id        String         @id @default(cuid())
   name      String
-  user      User      @relation(fields: [userId], references: [id])
   userId    String
-  isPrivate Boolean   @default(false)
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  isPrivate Boolean        @default(false)
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      User           @relation(fields: [userId], references: [id])
   items     PlaylistItem[]
 }
 
 model PlaylistItem {
-  id          String   @id @default(cuid())
-  playlist    Playlist @relation(fields: [playlistId], references: [id])
+  id          String     @id @default(cuid())
   playlistId  String
   audiobookId String?
-  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
   podcastId   String?
-  podcast     Podcast? @relation(fields: [podcastId], references: [id])
   order       Int
+  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
+  playlist    Playlist   @relation(fields: [playlistId], references: [id])
+  podcast     Podcast?   @relation(fields: [podcastId], references: [id])
 }
 
 model MediaHistory {
-  id          String   @id @default(cuid())
-  user        User     @relation(fields: [userId], references: [id])
-  userId      String
-  audiobookId String?
-  audiobook   Audiobook? @relation(fields: [audiobookId], references: [id])
-  podcastId   String?
-  podcast     Podcast? @relation(fields: [podcastId], references: [id])
+  id              String         @id @default(cuid())
+  userId          String
+  audiobookId     String?
+  podcastId       String?
   liveBroadcastId String?
-  liveBroadcast LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
-  listenedAt  DateTime @default(now())
+  listenedAt      DateTime       @default(now())
+  audiobook       Audiobook?     @relation(fields: [audiobookId], references: [id])
+  liveBroadcast   LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
+  podcast         Podcast?       @relation(fields: [podcastId], references: [id])
+  user            User           @relation(fields: [userId], references: [id])
+}
+
+model BroadcastGuest {
+  id          String        @id @default(cuid())
+  name        String
+  title       String?
+  role        String
+  broadcastId String
+  createdAt   DateTime      @default(now())
+  broadcast   LiveBroadcast @relation(fields: [broadcastId], references: [id])
 }
 
 model Report {
+  id         String   @id @default(cuid())
+  userId     String
+  reason     String
+  resolved   Boolean  @default(false)
+  targetType String
+  targetId   String
+  createdAt  DateTime @default(now())
+  reporter   User     @relation("UserReports", fields: [userId], references: [id])
+}
+
+model GuestInvitation {
+  id               String           @id @default(cuid())
+  podcastId        String
+  guestName        String
+  guestEmail       String
+  invitationToken  String           @unique
+  status           InvitationStatus @default(PENDING)
+  expiresAt        DateTime
+  acceptedAt       DateTime?
+  acceptedByUserId String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
+  acceptedBy       User?            @relation("AcceptedBy", fields: [acceptedByUserId], references: [id])
+  podcast          Podcast          @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+
+  @@index([invitationToken])
+  @@index([podcastId])
+  @@index([guestEmail])
+}
+
+model PodcastGuest {
+  id        String      @id @default(cuid())
+  podcastId String
+  userId    String
+  status    GuestStatus @default(INVITED)
+  invitedAt DateTime    @default(now())
+  joinedAt  DateTime?
+  leftAt    DateTime?
+  notes     String?
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  podcast   Podcast     @relation(fields: [podcastId], references: [id], onDelete: Cascade)
+  user      User        @relation(fields: [userId], references: [id])
+
+  @@unique([podcastId, userId])
+  @@index([podcastId])
+  @@index([userId])
+}
+
+model Schedule {
+  id               String         @id @default(cuid())
+  title            String
+  description      String?
+  type             ScheduleType
+  status           ScheduleStatus @default(DRAFT)
+  startTime        DateTime
+  endTime          DateTime?
+  duration         Int?
+  timezone         String         @default("UTC")
+  isRecurring      Boolean        @default(false)
+  recurringPattern String?
+  recurringEndDate DateTime?
+  liveBroadcastId  String?
+  podcastId        String?
+  audiobookId      String?
+  chapterId        String?
+  priority         Int            @default(0)
+  tags             String?
+  metadata         String?
+  publishedAt      DateTime?
+  publishedBy      String?
+  autoPublish      Boolean        @default(false)
+  notifyStaff      Boolean        @default(true)
+  notifyUsers      Boolean        @default(false)
+  createdBy        String
+  assignedTo       String?
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  advertisement    Advertisement?
+  campaign         Campaign?
+  event            Event?
+  assignee         Staff?         @relation("ScheduleAssignee", fields: [assignedTo], references: [id])
+  audiobook        Audiobook?     @relation(fields: [audiobookId], references: [id])
+  creator          Staff          @relation("ScheduleCreator", fields: [createdBy], references: [id])
+  liveBroadcast    LiveBroadcast? @relation(fields: [liveBroadcastId], references: [id])
+  podcast          Podcast?       @relation(fields: [podcastId], references: [id])
+  publisher        Staff?         @relation("SchedulePublisher", fields: [publishedBy], references: [id])
+
+  @@index([type, status])
+  @@index([startTime])
+  @@index([createdBy])
+}
+
+model Event {
+  id               String    @id @default(cuid())
+  scheduleId       String    @unique
+  eventType        EventType
+  location         String?
+  venue            String?
+  address          String?
+  city             String?
+  state            String?
+  country          String?
+  isVirtual        Boolean   @default(false)
+  virtualLink      String?
+  isPaid           Boolean   @default(false)
+  ticketPrice      Float?
+  currency         String    @default("USD")
+  maxAttendees     Int?
+  currentAttendees Int       @default(0)
+  requiresRSVP     Boolean   @default(false)
+  imageUrl         String?
+  bannerUrl        String?
+  galleryUrls      String?
+  contactEmail     String?
+  contactPhone     String?
+  contactPerson    String?
+  facebookEvent    String?
+  twitterEvent     String?
+  linkedinEvent    String?
+  organizer        String
+  coOrganizers     String?
+  sponsors         String?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  organizerStaff   Staff     @relation("EventOrganizer", fields: [organizer], references: [id])
+  schedule         Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  registrations    EventRegistration[]
+}
+
+model EventRegistration {
   id           String   @id @default(cuid())
-  reporter     User     @relation("UserReports", fields: [userId], references: [id])
   userId       String
-  reason       String
-  resolved     Boolean  @default(false)
-  targetType   String
-  targetId     String
+  eventId      String
+  registeredAt DateTime @default(now())
   createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+  event        Event    @relation(fields: [eventId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, eventId])
+  @@index([eventId])
+  @@index([userId])
+}
+
+model Campaign {
+  id              String       @id @default(cuid())
+  scheduleId      String       @unique
+  campaignType    CampaignType
+  budget          Float?
+  currency        String       @default("USD")
+  targetAudience  String?
+  primaryGoal     String?
+  successMetrics  String?
+  expectedReach   Int?
+  actualReach     Int?         @default(0)
+  conversionGoal  String?
+  creativeAssets  String?
+  scriptContent   String?
+  callToAction    String?
+  landingPageUrl  String?
+  channels        String?
+  socialPlatforms String?
+  partners        String?
+  influencers     String?
+  manager         String
+  team            String?
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+  campaignManager Staff        @relation("CampaignManager", fields: [manager], references: [id])
+  schedule        Schedule     @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+}
+
+model Advertisement {
+  id              String    @id @default(cuid())
+  scheduleId      String    @unique
+  adType          AdType
+  advertiser      String
+  contactEmail    String?
+  contactPhone    String?
+  audioFileUrl    String?
+  imageUrl        String?
+  videoUrl        String?
+  scriptContent   String?
+  callToAction    String?
+  websiteUrl      String?
+  rate            Float?
+  currency        String    @default("USD")
+  billingType     String?
+  totalCost       Float?
+  targetDemo      String?
+  targetShows     String?
+  targetTimeSlots String?
+  playCount       Int       @default(0)
+  clickCount      Int       @default(0)
+  conversionCount Int       @default(0)
+  isApproved      Boolean   @default(false)
+  approvedBy      String?
+  approvedAt      DateTime?
+  complianceNotes String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  approver        Staff?    @relation("AdApprover", fields: [approvedBy], references: [id])
+  schedule        Schedule  @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+}
+
+model Program {
+  id          String        @id @default(cuid())
+  title       String
+  slug        String        @unique
+  description String
+  category    ProgramCategory
+  schedule    String        // e.g., "Weekdays, 7AM - 10AM"
+  image       String?
+  status      ProgramStatus @default(ACTIVE)
+  hostId      String
+  host        Staff         @relation(fields: [hostId], references: [id])
+  genreId     String?
+  genre       Genre?        @relation(fields: [genreId], references: [id])
+  episodes    ProgramEpisode[]
+  broadcasts  LiveBroadcast[]
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+}
+
+model ProgramEpisode {
+  id           String   @id @default(cuid())
+  title        String
+  description  String?
+  audioFile    String?
+  duration     Int?
+  airDate      DateTime
+  programId    String
+  broadcastId  String?  @unique
+  program      Program  @relation(fields: [programId], references: [id], onDelete: Cascade)
+  broadcast    LiveBroadcast? @relation(fields: [broadcastId], references: [id])
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model DashboardSettings {
+  id                        String   @id @default(cuid())
+  // General Dashboard Settings
+  dashboardTitle            String   @default("Radio Dashboard")
+  organizationName          String   @default("Internet Radio Station")
+  logoUrl                   String?
+  faviconUrl                String?
+  theme                     String   @default("light") // light, dark, auto
+  primaryColor              String   @default("#3b82f6")
+  secondaryColor            String   @default("#64748b")
+  
+  // Broadcast Settings
+  defaultBroadcastQuality   String   @default("HD")
+  defaultStreamDelay        Int      @default(5)
+  maxConcurrentListeners    Int      @default(1000)
+  autoRecordBroadcasts      Boolean  @default(false)
+  enableChatModeration      Boolean  @default(true)
+  defaultRecordingFormat    String   @default("MP3")
+  
+  // Content Settings
+  defaultAudioQuality       String   @default("128kbps")
+  allowFileUploads          Boolean  @default(true)
+  maxFileUploadSize         Int      @default(104857600) // 100MB in bytes
+  allowedFileTypes          String   @default("mp3,wav,flac,m4a")
+  enableTranscription       Boolean  @default(true)
+  autoGenerateTranscripts   Boolean  @default(false)
+  
+  // Notification Settings
+  enableEmailNotifications  Boolean  @default(true)
+  enableSMSNotifications    Boolean  @default(false)
+  enableSlackNotifications  Boolean  @default(false)
+  notificationEmail         String?
+  slackWebhookUrl           String?
+  smsProviderConfig         String?
+  
+  // Security Settings
+  enableTwoFactorAuth       Boolean  @default(false)
+  sessionTimeout            Int      @default(3600) // 1 hour in seconds
+  passwordMinLength         Int      @default(8)
+  requirePasswordComplexity Boolean  @default(true)
+  maxLoginAttempts          Int      @default(5)
+  lockoutDuration           Int      @default(900) // 15 minutes in seconds
+  
+  // Analytics & Monitoring
+  enableAnalytics           Boolean  @default(true)
+  analyticsProvider         String   @default("internal")
+  enableErrorReporting      Boolean  @default(true)
+  enablePerformanceMonitoring Boolean @default(true)
+  dataRetentionDays         Int      @default(90)
+  
+  // API & Integration Settings
+  enablePublicAPI           Boolean  @default(false)
+  apiRateLimit              Int      @default(1000) // requests per hour
+  enableWebhooks            Boolean  @default(false)
+  webhookSigningSecret      String?
+  
+  // Backup & Maintenance
+  enableAutomaticBackups    Boolean  @default(true)
+  backupFrequency           String   @default("daily") // daily, weekly, monthly
+  backupRetentionDays       Int      @default(30)
+  maintenanceMode           Boolean  @default(false)
+  maintenanceMessage        String?
+  
+  // Content Moderation
+  enableContentModeration   Boolean  @default(true)
+  autoFlagInappropriate     Boolean  @default(true)
+  requireContentApproval    Boolean  @default(false)
+  moderationKeywords        String?
+  
+  // System Information (read-only)
+  systemVersion             String?
+  lastUpdatedBy             String?
+  createdAt                 DateTime @default(now())
+  updatedAt                 DateTime @updatedAt
+  
+  @@map("dashboard_settings")
+}
+
+enum StaffRole {
+  ADMIN
+  HOST
+  CO_HOST
+  PRODUCER
+  SOUND_ENGINEER
+  CONTENT_MANAGER
+  TECHNICAL_SUPPORT
+}
+
+enum UserRole {
+  USER
+  PREMIUM_USER
+}
+
+enum BroadcastRole {
+  HOST
+  CO_HOST
+  PRODUCER
+  SOUND_ENGINEER
+  GUEST
+  MODERATOR
+}
+
+enum AudiobookStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum ChapterStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum BroadcastStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+}
+
+enum AssetType {
+  IMAGE
+  AUDIO
+  VIDEO
+  DOCUMENT
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum GuestStatus {
+  INVITED
+  ACCEPTED
+  JOINED
+  LEFT
+  REMOVED
+}
+
+enum ScheduleType {
+  LIVE_BROADCAST
+  PODCAST_EPISODE
+  AUDIOBOOK_CHAPTER
+  EVENT
+  CAMPAIGN
+  ADVERTISEMENT
+  ANNOUNCEMENT
+  MAINTENANCE
+}
+
+enum ScheduleStatus {
+  DRAFT
+  SCHEDULED
+  PUBLISHED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+enum EventType {
+  CONCERT
+  MEETUP
+  INTERVIEW
+  SPECIAL_BROADCAST
+  CONTEST
+  GIVEAWAY
+  COMMUNITY_EVENT
+  FUNDRAISER
+}
+
+enum CampaignType {
+  PROMOTIONAL
+  AWARENESS
+  SEASONAL
+  PRODUCT_LAUNCH
+  BRAND_ACTIVATION
+  PARTNERSHIP
+}
+
+enum AdType {
+  BANNER
+  AUDIO_SPOT
+  SPONSORED_CONTENT
+  JINGLE
+  LIVE_READ
+  PRE_ROLL
+  MID_ROLL
+  POST_ROLL
+}
+
+enum ProgramCategory {
+  TALK_SHOW
+  MUSIC
+  TECHNOLOGY
+  BUSINESS
+  INTERVIEW
+  SPORTS
+  NEWS
+  ENTERTAINMENT
+  EDUCATION
+}
+
+enum ProgramStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum PodcastStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum EpisodeStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+enum SettingsCategory {
+  GENERAL
+  BROADCAST
+  CONTENT
+  NOTIFICATIONS
+  SECURITY
+  ANALYTICS
+  API
+  BACKUP
+  MODERATION
+}
+
+enum ArchiveType {
+  PODCAST
+  BROADCAST
+  AUDIOBOOK
+  INTERVIEW
+  TALK_SHOW
+  MUSIC_SHOW
+  NEWS
+  DOCUMENTARY
+  SERIES
+}
+
+enum ArchiveStatus {
+  ACTIVE
+  ARCHIVED
+  HIDDEN
+  FEATURED
+}
+
+model Archive {
+  id                  String        @id @default(cuid())
+  title               String
+  slug                String        @unique
+  description         String?
+  host                String?
+  guests              String?
+  category            String?
+  type                ArchiveType
+  status              ArchiveStatus @default(ACTIVE)
+  duration            Int?          // Duration in seconds
+  fileSize            Int?          // File size in bytes
+  audioFile           String?       // Direct audio file URL
+  downloadUrl         String?       // Download URL
+  coverImage          String?
+  thumbnailImage      String?
+  originalAirDate     DateTime?     // When it was originally aired/published
+  archivedDate        DateTime      @default(now()) // When it was added to archives
+  playCount           Int           @default(0)
+  downloadCount       Int           @default(0)
+  likeCount           Int           @default(0)
+  shareCount          Int           @default(0)
+  isFeatured          Boolean       @default(false)
+  isDownloadable      Boolean       @default(true)
+  isExclusive         Boolean       @default(false)
+  accessLevel         String        @default("PUBLIC") // PUBLIC, PREMIUM, SUBSCRIBER_ONLY
+  tags                String?       // JSON array of tags
+  metadata            String?       // Additional JSON metadata
+  transcript          String?       // Full transcript
+  transcriptFile      String?       // Transcript file URL
+  qualityVariants     String?       // JSON array of different quality versions
+  
+  // Relations to existing content
+  podcastId           String?
+  audiobookId         String?
+  broadcastId         String?
+  episodeId           String?
+  
+  // Staff relations
+  createdById         String
+  curatedById         String?       // Staff member who curated/featured this
+  
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
+  
+  // Relations
+  createdBy           Staff         @relation("ArchiveCreatedBy", fields: [createdById], references: [id])
+  curatedBy           Staff?        @relation("ArchiveCuratedBy", fields: [curatedById], references: [id])
+  podcast             Podcast?      @relation(fields: [podcastId], references: [id])
+  audiobook           Audiobook?    @relation(fields: [audiobookId], references: [id])
+  broadcast           LiveBroadcast? @relation(fields: [broadcastId], references: [id])
+  episode             PodcastEpisode? @relation(fields: [episodeId], references: [id])
+  
+  // User interactions
+  bookmarks           Bookmark[]
+  comments            Comment[]
+  favorites           Favorite[]
+  playbackProgress    PlaybackProgress[]
+  reviews             Review[]
+  
+  @@index([type])
+  @@index([status])
+  @@index([originalAirDate])
+  @@index([archivedDate])
+  @@index([category])
+  @@index([createdById])
 }

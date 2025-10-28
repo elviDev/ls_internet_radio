@@ -25,3 +25,11 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# claude
+claude/
+claude-*.json
+
+# database
+*.db
+*.db-journal

@@ -9,95 +9,20 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { PodcastPlayer } from "@/components/podcast/podcast-player";
 import { EpisodeList } from "@/components/podcast/episode-list";
-import { PodcastComments } from "@/components/podcast/podcast-comments";
+import { CommentSection } from "@/components/audiobook/comment-section";
 import { PodcastTranscript } from "@/components/podcast/podcast-transcript";
+import { ReviewSection } from "@/components/audiobook/review-section";
 import {
   fetchPodcastEpisodes,
   toggleFavoritePodcast,
   checkIsFavorite,
+  addComment,
+  getEpisodeComments,
+  getEpisodeTranscript,
 } from "@/app/podcasts/actions";
 import { useToast } from "@/hooks/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 
-// Sample transcript data
-const sampleTranscript = [
-  {
-    id: "1",
-    speaker: "Host",
-    content:
-      "Welcome to this episode of our podcast. Today we're discussing the future of technology.",
-    timestamp: "00:00:00",
-  },
-  {
-    id: "2",
-    speaker: "Guest",
-    content:
-      "Thanks for having me. I'm excited to share my thoughts on this topic.",
-    timestamp: "00:00:15",
-  },
-  {
-    id: "3",
-    speaker: "Host",
-    content:
-      "Let's start with the basics. How do you see technology evolving in the next decade?",
-    timestamp: "00:00:30",
-  },
-  {
-    id: "4",
-    speaker: "Guest",
-    content:
-      "That's a great question. I believe we're going to see unprecedented advances in artificial intelligence, quantum computing, and biotechnology.",
-    timestamp: "00:00:45",
-  },
-  {
-    id: "5",
-    speaker: "Guest",
-    content:
-      "These technologies will converge to solve some of humanity's biggest challenges, from climate change to healthcare.",
-    timestamp: "00:01:00",
-  },
-  {
-    id: "6",
-    speaker: "Host",
-    content:
-      "That sounds promising. Can you elaborate on how AI specifically will impact our daily lives?",
-    timestamp: "00:01:15",
-  },
-  {
-    id: "7",
-    speaker: "Guest",
-    content:
-      "AI will become more integrated into everything we do, from personalized education to predictive healthcare.",
-    timestamp: "00:01:30",
-  },
-  {
-    id: "8",
-    speaker: "Guest",
-    content:
-      "But it's important that we develop these technologies ethically and with proper oversight.",
-    timestamp: "00:01:45",
-  },
-];
-
-// Sample comments data
-const sampleComments = [
-  {
-    id: "1",
-    author: "John Doe",
-    authorImage: "/placeholder.svg?height=100&width=100",
-    content:
-      "This episode was incredibly insightful! I especially enjoyed the discussion about ethical AI development.",
-    date: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(), // 2 days ago
-  },
-  {
-    id: "2",
-    author: "Amanda Smith",
-    authorImage: "/placeholder.svg?height=100&width=100",
-    content:
-      "Great episode! I have a question about the AI regulation frameworks mentioned around the 30-minute mark. Are there any resources you'd recommend to learn more about this topic?",
-    date: new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString(), // 5 days ago
-  },
-];
 
 export default function PodcastDetailPage({
   params,
@@ -109,6 +34,10 @@ export default function PodcastDetailPage({
   const [error, setError] = useState<string | null>(null);
   const [currentEpisode, setCurrentEpisode] = useState<any>(null);
   const [isFavorite, setIsFavorite] = useState(false);
+  const [currentEpisodeComments, setCurrentEpisodeComments] = useState<any[]>([]);
+  const [currentEpisodeTranscript, setCurrentEpisodeTranscript] = useState<any[]>([]);
+  const [loadingComments, setLoadingComments] = useState(false);
+  const [loadingTranscript, setLoadingTranscript] = useState(false);
   const { toast } = useToast();
 
   const { id } = params;
@@ -147,13 +76,69 @@ export default function PodcastDetailPage({
     fetchData();
   }, [id]);
 
-  const handlePlayEpisode = (episode: any) => {
+  const handlePlayEpisode = async (episode: any) => {
     setCurrentEpisode(episode);
+    
+    // Load comments and transcript for the current episode
+    await loadEpisodeData(episode.trackId);
 
     // Scroll to player
     const playerElement = document.getElementById("podcast-player");
     if (playerElement) {
       playerElement.scrollIntoView({ behavior: "smooth" });
+    }
+  };
+
+  const loadEpisodeData = async (episodeId: string) => {
+    // Load comments
+    setLoadingComments(true);
+    try {
+      const commentsResult = await getEpisodeComments(episodeId);
+      if (commentsResult.success) {
+        setCurrentEpisodeComments(commentsResult.data);
+      }
+    } catch (error) {
+      console.error("Failed to load comments:", error);
+    } finally {
+      setLoadingComments(false);
+    }
+
+    // Load transcript
+    setLoadingTranscript(true);
+    try {
+      const transcriptResult = await getEpisodeTranscript(episodeId);
+      if (transcriptResult.success) {
+        setCurrentEpisodeTranscript(transcriptResult.data);
+      }
+    } catch (error) {
+      console.error("Failed to load transcript:", error);
+    } finally {
+      setLoadingTranscript(false);
+    }
+  };
+
+  const handleAddComment = async (content: string) => {
+    if (!currentEpisode) return;
+
+    try {
+      const result = await addComment(currentEpisode.trackId, content);
+      if (result.success) {
+        setCurrentEpisodeComments(prev => [result.data, ...prev]);
+        toast({
+          title: "Comment added",
+          description: "Your comment has been added successfully",
+        });
+        return { success: true };
+      } else {
+        throw new Error(result.error);
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to add comment",
+        variant: "destructive",
+      });
+      return { success: false };
     }
   };
 
@@ -164,9 +149,7 @@ export default function PodcastDetailPage({
       const result = await toggleFavoritePodcast({
         id: params.id,
         title: podcastData.podcast.collectionName,
-        image:
-          podcastData.podcast.artworkUrl100?.replace("100x100", "600x600") ||
-          "",
+        image: podcastData.podcast.artworkUrl100 || "",
         artist: podcastData.podcast.artistName,
       });
 
@@ -275,7 +258,7 @@ export default function PodcastDetailPage({
           <div className="relative w-full aspect-video rounded-xl overflow-hidden mb-6">
             <Image
               src={
-                podcast.artworkUrl100?.replace("100x100", "600x600") ||
+                podcast.artworkUrl100 ||
                 "/placeholder.svg?height=600&width=600"
               }
               alt={podcast.collectionName}
@@ -344,7 +327,7 @@ export default function PodcastDetailPage({
                 title={currentEpisode.trackName || "Unknown Episode"}
                 artist={podcast.artistName}
                 audioUrl={currentEpisode.previewUrl || ""}
-                image={podcast.artworkUrl100?.replace("100x100", "600x600")}
+                image={podcast.artworkUrl100}
                 onFavoriteToggle={handleFavoriteToggle}
                 isFavorite={isFavorite}
               />
@@ -355,6 +338,7 @@ export default function PodcastDetailPage({
             <Tabs defaultValue="episodes">
               <TabsList className="mb-6">
                 <TabsTrigger value="episodes">Episodes</TabsTrigger>
+                <TabsTrigger value="reviews">Reviews</TabsTrigger>
                 <TabsTrigger value="comments">Comments</TabsTrigger>
                 <TabsTrigger value="transcript">Transcript</TabsTrigger>
               </TabsList>
@@ -366,16 +350,18 @@ export default function PodcastDetailPage({
                 />
               </TabsContent>
 
+              <TabsContent value="reviews">
+                <ReviewSection podcastId={params.id} />
+              </TabsContent>
+
               <TabsContent value="comments">
-                <PodcastComments
-                  initialComments={sampleComments}
-                  podcastId={params.id}
-                />
+                <CommentSection podcastId={params.id} />
               </TabsContent>
 
               <TabsContent value="transcript">
                 <PodcastTranscript
-                  segments={sampleTranscript}
+                  segments={currentEpisodeTranscript}
+                  isLoading={loadingTranscript}
                   onJumpToTimestamp={(timestamp) => {
                     // In a real app, this would seek to the timestamp in the audio player
                     toast({

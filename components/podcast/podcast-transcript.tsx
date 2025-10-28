@@ -17,10 +17,11 @@ interface TranscriptSegment {
 interface PodcastTranscriptProps {
   segments: TranscriptSegment[]
   onJumpToTimestamp?: (timestamp: string) => void
+  isLoading?: boolean
   className?: string
 }
 
-export function PodcastTranscript({ segments, onJumpToTimestamp, className }: PodcastTranscriptProps) {
+export function PodcastTranscript({ segments, onJumpToTimestamp, isLoading = false, className }: PodcastTranscriptProps) {
   const [searchTerm, setSearchTerm] = useState("")
   const [isFullTranscript, setIsFullTranscript] = useState(false)
 
@@ -61,9 +62,14 @@ export function PodcastTranscript({ segments, onJumpToTimestamp, className }: Po
       </form>
 
       <div className="space-y-4">
-        {displaySegments.length === 0 ? (
+        {isLoading ? (
+          <div className="text-center py-4">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div>
+            <p className="text-muted-foreground mt-2">Loading transcript...</p>
+          </div>
+        ) : displaySegments.length === 0 ? (
           <p className="text-center text-muted-foreground py-4">
-            {searchTerm ? "No matching segments found" : "No transcript available"}
+            {searchTerm ? "No matching segments found" : segments.length === 0 ? "No transcript available for this episode" : "No transcript available"}
           </p>
         ) : (
           displaySegments.map((segment) => (

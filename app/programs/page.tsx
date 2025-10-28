@@ -1,123 +1,145 @@
+"use client"
+
+import { useState, useEffect } from "react"
 import Image from "next/image";
 import Link from "next/link";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Clock, Calendar, User } from "lucide-react";
+import { Clock, Calendar, User, Loader2 } from "lucide-react";
 
-const programs = [
-  {
-    id: 1,
-    title: "Morning Vibes",
-    host: "Alex Rivera",
-    schedule: "Weekdays, 7AM - 10AM",
-    image: "/placeholder.svg?height=300&width=600&text=Morning+Vibes",
-    category: "Talk Show",
-    description:
-      "Start your day with uplifting conversations, news updates, and the perfect music mix to energize your morning.",
-    episodes: 124,
-  },
-  {
-    id: 2,
-    title: "Tech Talk",
-    host: "Sarah Johnson",
-    schedule: "Weekdays, 9AM - 11AM",
-    image: "/placeholder.svg?height=300&width=600&text=Tech+Talk",
-    category: "Technology",
-    description:
-      "Dive into the latest tech trends, gadget reviews, and interviews with industry leaders shaping our digital future.",
-    episodes: 87,
-  },
-  {
-    id: 3,
-    title: "Lunch Beats",
-    host: "DJ Marcus",
-    schedule: "Weekdays, 11AM - 1PM",
-    image: "/placeholder.svg?height=300&width=600&text=Lunch+Beats",
-    category: "Music",
-    description:
-      "The perfect midday music mix to keep you energized through your lunch break with the hottest tracks and throwbacks.",
-    episodes: 156,
-  },
-  {
-    id: 4,
-    title: "Afternoon Acoustics",
-    host: "Mia Chen",
-    schedule: "Weekdays, 2PM - 4PM",
-    image: "/placeholder.svg?height=300&width=600&text=Afternoon+Acoustics",
-    category: "Music",
-    description:
-      "Unwind with soothing acoustic performances, artist interviews, and behind-the-scenes stories from the music world.",
-    episodes: 92,
-  },
-  {
-    id: 5,
-    title: "Business Hour",
-    host: "James Wilson",
-    schedule: "Weekdays, 3PM - 5PM",
-    image: "/placeholder.svg?height=300&width=600&text=Business+Hour",
-    category: "Business",
-    description:
-      "Expert analysis on market trends, business strategies, and interviews with entrepreneurs and industry leaders.",
-    episodes: 78,
-  },
-  {
-    id: 6,
-    title: "Evening Discussions",
-    host: "Jordan Taylor",
-    schedule: "Mon, Wed, Fri, 7PM - 9PM",
-    image: "/placeholder.svg?height=300&width=600&text=Evening+Discussions",
-    category: "Interview",
-    description:
-      "Thought-provoking conversations with authors, experts, and changemakers on topics that matter in today's world.",
-    episodes: 64,
-  },
-  {
-    id: 7,
-    title: "Night Waves",
-    host: "DJ Luna",
-    schedule: "Weekdays, 9PM - 12AM",
-    image: "/placeholder.svg?height=300&width=600&text=Night+Waves",
-    category: "Music",
-    description:
-      "Wind down your day with smooth beats, ambient sounds, and the perfect soundtrack for your evening relaxation.",
-    episodes: 112,
-  },
-  {
-    id: 8,
-    title: "Weekend Brunch",
-    host: "Chris & Pat",
-    schedule: "Weekends, 10AM - 12PM",
-    image: "/placeholder.svg?height=300&width=600&text=Weekend+Brunch",
-    category: "Talk Show",
-    description:
-      "Start your weekend right with fun conversations, celebrity interviews, and the latest in entertainment news.",
-    episodes: 48,
-  },
-  {
-    id: 9,
-    title: "Sports Central",
-    host: "Mike Thompson",
-    schedule: "Weekends, 12PM - 3PM",
-    image: "/placeholder.svg?height=300&width=600&text=Sports+Central",
-    category: "Sports",
-    description:
-      "Complete coverage of the week's biggest games, athlete interviews, and expert analysis of all your favorite sports.",
-    episodes: 52,
-  },
-];
-
-const categories = [
-  "All",
-  "Talk Show",
-  "Music",
-  "Technology",
-  "Business",
-  "Interview",
-  "Sports",
-];
+type Program = {
+  id: string
+  title: string
+  slug: string
+  host: string
+  schedule: string
+  image: string
+  category: string
+  description: string
+  episodes: number
+  genre?: string
+  status: string
+  createdAt: string
+}
 
 export default function ProgramsPage() {
+  const [programs, setPrograms] = useState<Program[]>([])
+  const [categories, setCategories] = useState<string[]>([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [activeCategory, setActiveCategory] = useState("all")
+
+  useEffect(() => {
+    fetchCategories()
+    fetchPrograms()
+  }, [])
+
+  const fetchCategories = async () => {
+    try {
+      const response = await fetch('/api/programs/categories')
+      if (!response.ok) throw new Error('Failed to fetch categories')
+      const data = await response.json()
+      setCategories(data)
+    } catch (error) {
+      console.error('Error fetching categories:', error)
+      // Fallback to default categories
+      setCategories([
+        "All",
+        "Talk Show", 
+        "Music",
+        "Technology",
+        "Business",
+        "Interview",
+        "Sports",
+        "News",
+        "Entertainment",
+        "Education"
+      ])
+    }
+  }
+
+  // Map display category to backend format
+  const mapCategoryToBackend = (category: string): string => {
+    if (category === "all") return "all"
+    
+    const categoryMap: { [key: string]: string } = {
+      "talk show": "TALK_SHOW",
+      "music": "MUSIC",
+      "technology": "TECHNOLOGY", 
+      "business": "BUSINESS",
+      "interview": "INTERVIEW",
+      "sports": "SPORTS",
+      "news": "NEWS",
+      "entertainment": "ENTERTAINMENT",
+      "education": "EDUCATION"
+    }
+    
+    return categoryMap[category.toLowerCase()] || category.toUpperCase()
+  }
+
+  const fetchPrograms = async (category?: string) => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams()
+      if (category && category !== "all") {
+        const backendCategory = mapCategoryToBackend(category)
+        params.append('category', backendCategory)
+      }
+      
+      const response = await fetch(`/api/programs?${params.toString()}`)
+      if (!response.ok) throw new Error('Failed to fetch programs')
+      
+      const data = await response.json()
+      setPrograms(data)
+      setError(null)
+    } catch (error) {
+      console.error('Error fetching programs:', error)
+      setError('Failed to load programs. Please try again later.')
+      setPrograms([])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleCategoryChange = (category: string) => {
+    setActiveCategory(category)
+    fetchPrograms(category)
+  }
+
+
+  if (loading && programs.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="flex items-center justify-center py-12">
+          <div className="text-center">
+            <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
+            <p className="text-muted-foreground">Loading programs...</p>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
+  if (error && programs.length === 0) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-4xl mx-auto text-center mb-12">
+          <h1 className="text-4xl font-bold mb-4">Our Programs</h1>
+          <div className="text-center py-12">
+            <p className="text-red-600 mb-4">{error}</p>
+            <button 
+              onClick={() => fetchPrograms()}
+              className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+            >
+              Try Again
+            </button>
+          </div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-4xl mx-auto text-center mb-12">
@@ -128,13 +150,14 @@ export default function ProgramsPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="all" className="mb-12">
+      <Tabs value={activeCategory} onValueChange={handleCategoryChange} className="mb-12">
         <TabsList className="flex flex-wrap h-auto p-1 mb-8">
           {categories.map((category) => (
             <TabsTrigger
               key={category}
               value={category === "All" ? "all" : category.toLowerCase()}
               className="mb-1"
+              disabled={loading}
             >
               {category}
             </TabsTrigger>
@@ -147,14 +170,19 @@ export default function ProgramsPage() {
             value={category === "All" ? "all" : category.toLowerCase()}
             className="mt-0"
           >
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {programs
-                .filter(
-                  (program) =>
-                    category === "All" || program.category === category
-                )
-                .map((program) => (
-                  <Link href={`/programs/${program.id}`} key={program.id}>
+            {loading ? (
+              <div className="flex items-center justify-center py-8">
+                <Loader2 className="h-6 w-6 animate-spin mr-2" />
+                <span>Loading programs...</span>
+              </div>
+            ) : programs.length === 0 ? (
+              <div className="text-center py-12">
+                <p className="text-muted-foreground">No programs found in this category.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {programs.map((program) => (
+                  <Link href={`/programs/${program.slug}`} key={program.id}>
                     <Card className="overflow-hidden hover:shadow-md transition-all h-full">
                       <div className="relative h-48">
                         <Image
@@ -194,7 +222,8 @@ export default function ProgramsPage() {
                     </Card>
                   </Link>
                 ))}
-            </div>
+              </div>
+            )}
           </TabsContent>
         ))}
       </Tabs>

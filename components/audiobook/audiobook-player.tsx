@@ -152,6 +152,27 @@ export function AudiobookPlayer({
     }
   }, [audioUrl, initialPosition, chapters, currentChapter, onChapterChange])
 
+  // Update audio source when audioUrl changes (chapter change)
+  useEffect(() => {
+    if (audioRef.current && audioRef.current.src !== audioUrl) {
+      const wasPlaying = isPlaying
+      if (wasPlaying) {
+        audioRef.current.pause()
+      }
+      
+      audioRef.current.src = audioUrl
+      audioRef.current.load()
+      
+      if (wasPlaying) {
+        audioRef.current.play().then(() => {
+          setIsPlaying(true)
+        }).catch((err) => {
+          setError("Failed to play audio: " + err.message)
+        })
+      }
+    }
+  }, [audioUrl, isPlaying])
+
   // Set up progress saving
   useEffect(() => {
     // Save progress every 10 seconds while playing
@@ -311,7 +332,7 @@ export function AudiobookPlayer({
             <h3 className="font-medium line-clamp-1">{title}</h3>
             <p className="text-sm text-muted-foreground">{author}</p>
             <p className="text-sm font-medium text-purple-600 mt-1">
-              {chapters[currentChapter]?.title || `Chapter ${currentChapter + 1}`}
+              {chapters[currentChapter]?.title || `Chapter ${(currentChapter || 0) + 1}`}
             </p>
           </div>
           <div className="flex items-center gap-2">

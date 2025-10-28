@@ -8,6 +8,8 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { AudiobookPlayer } from "@/components/audiobook/audiobook-player"
 import { ChapterList } from "@/components/audiobook/chapter-list"
+import { ReviewSection } from "@/components/audiobook/review-section"
+import { CommentSection } from "@/components/audiobook/comment-section"
 import {
   fetchAudiobookDetails,
   toggleFavoriteAudiobook,
@@ -35,17 +37,52 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
       try {
         setLoading(true)
 
-        // Fetch audiobook details
-        const result = await fetchAudiobookDetails(params.id)
-
-        if (result.success) {
-          setAudiobookData(result.data)
-
-          // Generate sample chapters since the API doesn't provide them
-          const sampleChapters = generateSampleChapters(result.data.volumeInfo.title, result.data.volumeInfo.pageCount)
-          setChapters(sampleChapters)
+        // Fetch audiobook details from our API
+        const response = await fetch(`/api/audiobooks/${params.id}?withChapters=true`)
+        
+        if (response.ok) {
+          const result = await response.json()
+          const audiobook = result.data
+          
+          // Transform the data to match the expected format
+          const transformedData = {
+            volumeInfo: {
+              title: audiobook.title,
+              authors: [audiobook.author || 'Unknown Author'],
+              description: audiobook.description,
+              imageLinks: {
+                thumbnail: audiobook.coverImage
+              },
+              categories: [audiobook.genre?.name || 'General'],
+              publishedDate: audiobook.releaseDate ? new Date(audiobook.releaseDate).getFullYear().toString() : undefined,
+              publisher: audiobook.publisher,
+              language: audiobook.language || 'en',
+              pageCount: audiobook.chapters?.length || 0,
+              averageRating: audiobook.averageRating > 0 ? audiobook.averageRating : undefined,
+              ratingsCount: audiobook._count?.reviews || 0
+            }
+          }
+          
+          setAudiobookData(transformedData)
+          
+          // Use actual chapters if available, otherwise generate sample ones
+          if (audiobook.chapters && audiobook.chapters.length > 0) {
+            const formattedChapters = audiobook.chapters.map((chapter: any, index: number) => ({
+              id: chapter.id,
+              title: chapter.title,
+              duration: chapter.duration || 300, // Default 5 minutes if no duration
+              trackNumber: chapter.trackNumber || index + 1,
+              audioFile: chapter.audioFile
+            }))
+            setChapters(formattedChapters)
+          } else {
+            const sampleChapters = generateSampleChapters(audiobook.title, 10)
+            setChapters(sampleChapters)
+          }
+        } else if (response.status === 404) {
+          setError("Audiobook not found")
         } else {
-          setError(result.error || "Failed to load audiobook")
+          setError("Failed to load audiobook")
         }
 
         // Check if this audiobook is in favorites
@@ -77,6 +114,9 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
 
   const handleChapterChange = (chapterIndex: number) => {
     setCurrentChapter(chapterIndex)
+    // Force re-render with new audio URL
+    const newAudioUrl = chapters[chapterIndex]?.audioFile || getSampleAudioUrl(params.id, chapterIndex + 1)
+    // The AudiobookPlayer will handle the audio source change via useEffect
   }
 
   const handleFavoriteToggle = async () => {
@@ -112,7 +152,7 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
 
   // Generate rating stars
   const renderRating = (rating: number) => {
-    if (!rating) return null
+    if (!rating || rating === 0) return null
 
     const stars = []
     const fullStars = Math.floor(rating)
@@ -133,8 +173,9 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
 
     return (
       <div className="flex items-center gap-0.5">
+        <Star className="h-4 w-4 text-yellow-400 mr-1" />
         {stars}
-        <span className="ml-1 text-sm">{rating.toFixed(1)}</span>
+        <span className="ml-2 text-sm font-medium">{rating.toFixed(1)}</span>
       </div>
     )
   }
@@ -194,7 +235,8 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
   }
 
   const { volumeInfo } = audiobookData
-  const audioUrl = getSampleAudioUrl(params.id, currentChapter + 1)
+  // Use actual chapter audio file if available, otherwise fallback to sample
+  const audioUrl = chapters[currentChapter]?.audioFile || getSampleAudioUrl(params.id, currentChapter + 1)
 
   // Get related audiobooks (in a real app, this would come from an API)
   const relatedAudiobooks = [
@@ -247,7 +289,7 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
                 by {volumeInfo.authors?.join(", ") || "Unknown Author"}
               </p>
 
-              {volumeInfo.averageRating && (
+              {volumeInfo.averageRating && volumeInfo.averageRating > 0 && (
                 <div className="mb-4">
                   {renderRating(volumeInfo.averageRating)}
                   <span className="text-sm text-muted-foreground ml-2">({volumeInfo.ratingsCount || 0} ratings)</span>
@@ -276,8 +318,12 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
                 <div className="flex items-center">
                   <Clock className="h-4 w-4 mr-1" />
                   <span>
-                    {chapters.reduce((total, chapter) => total + chapter.duration, 0) / 60} minutes ({chapters.length}{" "}
-                    chapters)
+                    {(() => {
+                      const totalMinutes = Math.round(chapters.reduce((total, chapter) => total + chapter.duration, 0) / 60)
+                      const hours = Math.floor(totalMinutes / 60)
+                      const mins = totalMinutes % 60
+                      return hours > 0 ? `${hours}h ${mins}m` : `${mins}m`
+                    })()} ({chapters.length} chapters)
                   </span>
                 </div>
               </div>
@@ -322,6 +368,7 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
                 <TabsTrigger value="chapters">Chapters</TabsTrigger>
                 <TabsTrigger value="details">Details</TabsTrigger>
                 <TabsTrigger value="reviews">Reviews</TabsTrigger>
+                <TabsTrigger value="comments">Comments</TabsTrigger>
               </TabsList>
 
               <TabsContent value="chapters">
@@ -393,85 +440,11 @@ export default function AudiobookDetailPage({ params }: { params: { id: string }
               </TabsContent>
 
               <TabsContent value="reviews">
-                <div className="space-y-6">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <h3 className="text-lg font-semibold">Reader Reviews</h3>
-                      <p className="text-muted-foreground">
-                        {volumeInfo.ratingsCount || 0} reviews, {volumeInfo.averageRating || 0} average
-                      </p>
-                    </div>
-                    <Button>Write a Review</Button>
-                  </div>
+                <ReviewSection audiobookId={params.id} />
+              </TabsContent>
 
-                  {/* Sample reviews */}
-                  <div className="space-y-6">
-                    <div className="border-b pb-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                            <User className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium">Sarah Johnson</p>
-                            <div className="flex items-center">
-                              <div className="flex">
-                                {[1, 2, 3, 4, 5].map((star) => (
-                                  <Star
-                                    key={star}
-                                    className={`h-3 w-3 ${
-                                      star <= 5 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
-                                    }`}
-                                  />
-                                ))}
-                              </div>
-                              <span className="text-xs text-muted-foreground ml-2">2 months ago</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-muted-foreground">
-                        This audiobook kept me engaged from start to finish. The narrator did an excellent job bringing
-                        the characters to life. Highly recommended for anyone who enjoys this genre!
-                      </p>
-                    </div>
-
-                    <div className="border-b pb-6">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-10 w-10 rounded-full bg-purple-100 flex items-center justify-center">
-                            <User className="h-5 w-5 text-purple-600" />
-                          </div>
-                          <div>
-                            <p className="font-medium">Michael Chen</p>
-                            <div className="flex items-center">
-                              <div className="flex">
-                                {[1, 2, 3, 4].map((star) => (
-                                  <Star
-                                    key={star}
-                                    className={`h-3 w-3 ${
-                                      star <= 4 ? "text-yellow-400 fill-yellow-400" : "text-gray-300"
-                                    }`}
-                                  />
-                                ))}
-                                <Star className="h-3 w-3 text-gray-300" />
-                              </div>
-                              <span className="text-xs text-muted-foreground ml-2">3 months ago</span>
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                      <p className="text-muted-foreground">
-                        The story was compelling, but I found some parts to be a bit slow. The narration was excellent
-                        though, which made up for the pacing issues.
-                      </p>
-                    </div>
-                  </div>
-
-                  <Button variant="outline" className="w-full">
-                    Load More Reviews
-                  </Button>
-                </div>
+              <TabsContent value="comments">
+                <CommentSection audiobookId={params.id} />
               </TabsContent>
             </Tabs>
           </div>

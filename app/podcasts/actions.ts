@@ -1,17 +1,51 @@
 "use server";
 
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
-import {
-  searchPodcasts,
-  getPodcastEpisodes,
-  getTopPodcasts,
-} from "@/lib/podcast-api";
 import { prisma } from "@/lib/prisma";
 
 export async function fetchPodcastSearch(searchTerm: string) {
   try {
-    const results = await searchPodcasts(searchTerm);
-    return { success: true, data: results };
+    const results = await prisma.podcast.findMany({
+      where: {
+        AND: [
+          { status: "PUBLISHED" },
+          {
+            OR: [
+              { title: { contains: searchTerm, mode: "insensitive" } },
+              { description: { contains: searchTerm, mode: "insensitive" } },
+              { author: { 
+                OR: [
+                  { firstName: { contains: searchTerm, mode: "insensitive" } },
+                  { lastName: { contains: searchTerm, mode: "insensitive" } }
+                ]
+              }},
+              { genre: { name: { contains: searchTerm, mode: "insensitive" } } }
+            ]
+          }
+        ]
+      },
+      include: {
+        author: { select: { firstName: true, lastName: true } },
+        genre: { select: { name: true } },
+        episodes: {
+          where: { status: "PUBLISHED" },
+          select: { id: true }
+        }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    // Transform to match expected format
+    const formattedResults = results.map((podcast: any) => ({
+      collectionId: podcast.id,
+      collectionName: podcast.title,
+      artistName: `${podcast.author.firstName} ${podcast.author.lastName}`,
+      artworkUrl100: podcast.coverImage || "/placeholder.svg?height=400&width=400",
+      primaryGenreName: podcast.genre?.name,
+      episodeCount: podcast.episodes.length
+    }));
+
+    return { success: true, data: formattedResults };
   } catch (error) {
     console.error("Error in fetchPodcastSearch:", error);
     return { success: false, error: "Failed to search podcasts" };
@@ -20,18 +54,103 @@ export async function fetchPodcastSearch(searchTerm: string) {
 
 export async function fetchPodcastEpisodes(podcastId: string) {
   try {
-    const { podcast, episodes } = await getPodcastEpisodes(podcastId);
-    return { success: true, data: { podcast, episodes } };
+    const podcast = await prisma.podcast.findUnique({
+      where: { id: podcastId },
+      include: {
+        author: { select: { firstName: true, lastName: true } },
+        genre: { select: { name: true } },
+        episodes: {
+          where: { status: "PUBLISHED" },
+          orderBy: { episodeNumber: "desc" },
+          include: {
+            comments: {
+              include: {
+                user: { select: { name: true, profileImage: true } }
+              },
+              orderBy: { createdAt: "desc" }
+            }
+          }
+        }
+      }
+    });
+
+    if (!podcast) {
+      return { success: false, error: "Podcast not found" };
+    }
+
+    // Transform to match expected format
+    const transformedPodcast = {
+      collectionId: podcast.id,
+      collectionName: podcast.title,
+      artistName: `${podcast.author.firstName} ${podcast.author.lastName}`,
+      artworkUrl100: podcast.coverImage || "/placeholder.svg?height=400&width=400",
+      primaryGenreName: podcast.genre?.name,
+      description: podcast.description
+    };
+
+    const transformedEpisodes = podcast.episodes.map((episode: any) => ({
+      trackId: episode.id,
+      trackName: episode.title,
+      description: episode.description,
+      releaseDate: episode.publishedAt || episode.createdAt,
+      trackTimeMillis: episode.duration * 1000,
+      previewUrl: episode.audioFile,
+      episodeNumber: episode.episodeNumber,
+      comments: episode.comments.map((comment: any) => ({
+        id: comment.id,
+        author: comment.user.name || "Anonymous",
+        authorImage: comment.user.profileImage,
+        content: comment.content,
+        date: comment.createdAt
+      }))
+    }));
+
+    return { success: true, data: { podcast: transformedPodcast, episodes: transformedEpisodes } };
   } catch (error) {
     console.error("Error in fetchPodcastEpisodes:", error);
     return { success: false, error: "Failed to fetch podcast episodes" };
   }
 }
 
-export async function fetchTopPodcasts(genreId?: number) {
+export async function fetchTopPodcasts(genreId?: string) {
   try {
-    const results = await getTopPodcasts(genreId);
-    return { success: true, data: results };
+    const whereCondition: any = { status: "PUBLISHED" };
+    if (genreId) {
+      whereCondition.genreId = genreId;
+    }
+
+    const results = await prisma.podcast.findMany({
+      where: whereCondition,
+      include: {
+        author: { select: { firstName: true, lastName: true } },
+        genre: { select: { name: true } },
+        episodes: {
+          where: { status: "PUBLISHED" },
+          select: { id: true }
+        },
+        _count: {
+          select: { favorites: true }
+        }
+      },
+      orderBy: [
+        { favorites: { _count: "desc" } },
+        { createdAt: "desc" }
+      ],
+      take: 20
+    });
+
+    // Transform to match expected format
+    const formattedResults = results.map((podcast: any) => ({
+      collectionId: podcast.id,
+      collectionName: podcast.title,
+      artistName: `${podcast.author.firstName} ${podcast.author.lastName}`,
+      artworkUrl100: podcast.coverImage || "/placeholder.svg?height=400&width=400",
+      primaryGenreName: podcast.genre?.name,
+      episodeCount: podcast.episodes.length,
+      favoriteCount: podcast._count.favorites
+    }));
+
+    return { success: true, data: formattedResults };
   } catch (error) {
     console.error("Error in fetchTopPodcasts:", error);
     return { success: false, error: "Failed to fetch top podcasts" };
@@ -47,62 +166,53 @@ export type FavoritePodcast = {
 
 export async function toggleFavoritePodcast(podcast: FavoritePodcast) {
   try {
-    //   const session = await getCurrentUser();
-    //   if (!session) {
-    //     return {
-    //       success: false,
-    //       error: "Authentication required",
-    //       authRequired: true,
-    //     };
-    //   }
-    //   const userData = await prisma.user.findUnique({
-    //     where: { id: session.id },
-    //     include: { podcasts: true },
-    //   });
-    //   if (!userData) {
-    //     return { success: false, error: "User data not found" };
-    //   }
-    //   // Check if podcast exists in database, if not create it
-    //   let dbPodcast = await prisma.podcast.findFirst({
-    //     where: { externalId: podcast.id },
-    //   });
-    //   if (!dbPodcast) {
-    //     dbPodcast = await prisma.podcast.create({
-    //       data: {
-    //         title: podcast.title,
-    //         author: podcast.artist,
-    //         imageUrl: podcast.image,
-    //         externalId: podcast.id,
-    //       },
-    //     });
-    //   }
-    //   // Check if podcast is already in favorites
-    //   const isFavorite = userData.podcasts.some(
-    //     (p: any) => p.id === dbPodcast!.id
-    //   );
-    //   if (isFavorite) {
-    //     // Remove from favorites
-    //     await prisma.userData.update({
-    //       where: { id: userData.id },
-    //       data: {
-    //         podcasts: {
-    //           disconnect: { id: dbPodcast!.id },
-    //         },
-    //       },
-    //     });
-    //     return { success: true, isFavorite: false };
-    //   } else {
-    //     // Add to favorites
-    //     await prisma.userData.update({
-    //       where: { id: userData.id },
-    //       data: {
-    //         podcasts: {
-    //           connect: { id: dbPodcast!.id },
-    //         },
-    //       },
-    //     });
-    return { success: true, isFavorite: true };
-    // }
+    const session = await getCurrentUser();
+    if (!session) {
+      return {
+        success: false,
+        error: "Authentication required",
+        authRequired: true,
+      };
+    }
+
+    // Check if podcast exists
+    const dbPodcast = await prisma.podcast.findUnique({
+      where: { id: podcast.id }
+    });
+
+    if (!dbPodcast) {
+      return { success: false, error: "Podcast not found" };
+    }
+
+    // Determine if this is a regular user or staff member
+    const isStaff = session.role && session.role !== 'USER';
+    
+    // Check if already favorited
+    const whereClause = isStaff 
+      ? { staffId_podcastId: { staffId: session.id, podcastId: podcast.id } }
+      : { userId_podcastId: { userId: session.id, podcastId: podcast.id } };
+
+    const existingFavorite = await prisma.favorite.findUnique({
+      where: whereClause
+    });
+
+    if (existingFavorite) {
+      // Remove from favorites
+      await prisma.favorite.delete({
+        where: whereClause
+      });
+      return { success: true, isFavorite: false };
+    } else {
+      // Add to favorites
+      const createData = isStaff 
+        ? { staffId: session.id, podcastId: podcast.id }
+        : { userId: session.id, podcastId: podcast.id };
+
+      await prisma.favorite.create({
+        data: createData
+      });
+      return { success: true, isFavorite: true };
+    }
   } catch (error) {
     console.error("Error in toggleFavoritePodcast:", error);
     return { success: false, error: "Failed to toggle favorite status" };
@@ -111,27 +221,23 @@ export async function toggleFavoritePodcast(podcast: FavoritePodcast) {
 
 export async function checkIsFavorite(podcastId: string) {
   try {
-    //   const session = await getCurrentSession();
-    //   if (!session) {
-    //     return { success: true, isFavorite: false };
-    //   }
-    //   const dbPodcast = await prisma.podcast.findFirst({
-    //     where: { externalId: podcastId },
-    //   });
-    //   if (!dbPodcast) {
-    //     return { success: true, isFavorite: false };
-    //   }
-    //   const userData = await prisma.userData.findUnique({
-    //     where: { userId: session.id },
-    //     include: { podcasts: true },
-    //   });
-    //   if (!userData) {
-    //     return { success: true, isFavorite: false };
-    //   }
-    //   const isFavorite = userData.podcasts.some(
-    //     (p: any) => p.id === dbPodcast.id
-    //   );
-    return { success: true, isFavorite: false };
+    const session = await getCurrentUser();
+    if (!session) {
+      return { success: true, isFavorite: false };
+    }
+
+    // Determine if this is a regular user or staff member
+    const isStaff = session.role && session.role !== 'USER';
+    
+    const whereClause = isStaff 
+      ? { staffId_podcastId: { staffId: session.id, podcastId: podcastId } }
+      : { userId_podcastId: { userId: session.id, podcastId: podcastId } };
+
+    const favorite = await prisma.favorite.findUnique({
+      where: whereClause
+    });
+
+    return { success: true, isFavorite: !!favorite };
   } catch (error) {
     console.error("Error in checkIsFavorite:", error);
     return { success: false, error: "Failed to check favorite status" };
@@ -149,25 +255,153 @@ export async function getFavoritePodcasts() {
       };
     }
 
-    //   const userData = await prisma.user.findUnique({
-    //     where: { userId: session.id },
-    //     include: { podcasts: true },
-    //   });
+    // Determine if this is a regular user or staff member
+    const isStaff = session.role && session.role !== 'USER';
+    
+    const whereClause = isStaff 
+      ? { staffId: session.id, podcastId: { not: null } }
+      : { userId: session.id, podcastId: { not: null } };
 
-    //   if (!userData) {
-    //     return { success: true, data: [] };
-    //   }
+    const favorites = await prisma.favorite.findMany({
+      where: whereClause,
+      include: {
+        podcast: {
+          include: {
+            author: { select: { firstName: true, lastName: true } },
+            genre: { select: { name: true } },
+            episodes: {
+              where: { status: "PUBLISHED" },
+              select: { id: true }
+            }
+          }
+        }
+      }
+    });
 
-    //   const favorites = userData.podcasts.map((podcast: any) => ({
-    //     id: podcast.externalId || podcast.id,
-    //     title: podcast.title,
-    //     image: podcast.imageUrl || "",
-    //     artist: podcast.author,
-    //   }));
+    const formattedFavorites = favorites.map((favorite: any) => ({
+      collectionId: favorite.podcast.id,
+      collectionName: favorite.podcast.title,
+      artistName: `${favorite.podcast.author.firstName} ${favorite.podcast.author.lastName}`,
+      artworkUrl100: favorite.podcast.coverImage || "/placeholder.svg?height=400&width=400",
+      primaryGenreName: favorite.podcast.genre?.name,
+      episodeCount: favorite.podcast.episodes.length
+    }));
 
-    return { success: true, data: [] };
+    return { success: true, data: formattedFavorites };
   } catch (error) {
     console.error("Error in getFavoritePodcasts:", error);
     return { success: false, error: "Failed to fetch favorite podcasts" };
+  }
+}
+
+export async function addComment(episodeId: string, content: string) {
+  try {
+    const session = await getCurrentUser();
+    if (!session) {
+      return {
+        success: false,
+        error: "Authentication required",
+        authRequired: true,
+      };
+    }
+
+    // For now, comments are only supported for regular users
+    // We might need to extend the Comment model to support staff later
+    const isStaff = session.role && session.role !== 'USER';
+    
+    if (isStaff) {
+      // For staff members, we'll create a comment using their name but as a regular user entry
+      // This is a temporary solution - ideally we'd extend the Comment model too
+      return {
+        success: false,
+        error: "Staff commenting is not yet supported. Please sign in with a regular user account.",
+      };
+    }
+
+    const comment = await prisma.comment.create({
+      data: {
+        content,
+        userId: session.id,
+        podcastEpisodeId: episodeId
+      },
+      include: {
+        user: { select: { name: true, profileImage: true } }
+      }
+    });
+
+    return {
+      success: true,
+      data: {
+        id: comment.id,
+        author: comment.user.name || "Anonymous",
+        authorImage: comment.user.profileImage,
+        content: comment.content,
+        date: comment.createdAt
+      }
+    };
+  } catch (error) {
+    console.error("Error in addComment:", error);
+    return { success: false, error: "Failed to add comment" };
+  }
+}
+
+export async function getEpisodeComments(episodeId: string) {
+  try {
+    const comments = await prisma.comment.findMany({
+      where: { podcastEpisodeId: episodeId },
+      include: {
+        user: { select: { name: true, profileImage: true } }
+      },
+      orderBy: { createdAt: "desc" }
+    });
+
+    const formattedComments = comments.map((comment: any) => ({
+      id: comment.id,
+      author: comment.user.name || "Anonymous",
+      authorImage: comment.user.profileImage,
+      content: comment.content,
+      date: comment.createdAt
+    }));
+
+    return { success: true, data: formattedComments };
+  } catch (error) {
+    console.error("Error in getEpisodeComments:", error);
+    return { success: false, error: "Failed to fetch comments" };
+  }
+}
+
+export async function getEpisodeTranscript(episodeId: string) {
+  try {
+    const episode = await prisma.podcastEpisode.findUnique({
+      where: { id: episodeId },
+      select: { transcript: true, transcriptFile: true }
+    });
+
+    if (!episode) {
+      return { success: false, error: "Episode not found" };
+    }
+
+    // Parse transcript into segments (assuming it's formatted as JSON or structured text)
+    let segments = [];
+    if (episode.transcript) {
+      try {
+        // Try to parse as JSON first
+        segments = JSON.parse(episode.transcript);
+      } catch {
+        // If not JSON, treat as plain text and create basic segments
+        const lines = episode.transcript.split('\n').filter(line => line.trim());
+        segments = lines.map((line, index) => ({
+          id: `segment-${index}`,
+          speaker: "Speaker",
+          content: line.trim(),
+          timestamp: `00:${String(index).padStart(2, '0')}:00`
+        }));
+      }
+    }
+
+    return { success: true, data: segments };
+  } catch (error) {
+    console.error("Error in getEpisodeTranscript:", error);
+    return { success: false, error: "Failed to fetch transcript" };
   }
 }

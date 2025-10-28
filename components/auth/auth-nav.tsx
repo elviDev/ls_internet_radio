@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
-import { LogOut, User, Settings } from "lucide-react";
+import { LogOut, User, Settings, LayoutDashboard } from "lucide-react";
 
 export function AuthNav() {
   const { user, logout } = useAuth();
@@ -23,7 +23,7 @@ export function AuthNav() {
         <Link href="/signin">
           <Button variant="ghost">Sign In</Button>
         </Link>
-        <Link href="/signup">
+        <Link href="/register">
           <Button>Sign Up</Button>
         </Link>
       </>
@@ -55,6 +55,14 @@ export function AuthNav() {
           <span className="text-muted-foreground text-sm">{user.email}</span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {user.role && user.role !== 'USER' && (
+          <DropdownMenuItem>
+            <LayoutDashboard className="mr-2 h-4 w-4" />
+            <Link href="/dashboard" className="w-full">
+              Dashboard
+            </Link>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem>
           <User className="mr-2 h-4 w-4" />
           <Link href="/profile" className="w-full">

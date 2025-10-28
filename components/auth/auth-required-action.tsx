@@ -42,7 +42,7 @@ export function AuthRequiredAction({
   }
 
   const handleLogin = () => {
-    router.push("/login")
+    router.push("/signin")
   }
 
   return (

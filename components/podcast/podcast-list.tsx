@@ -1,15 +1,12 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState } from "react"
 import { PodcastCard } from "./podcast-card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Filter, Search } from "lucide-react"
-import { podcastGenres } from "@/lib/podcast-api"
-import { fetchPodcastSearch } from "@/app/podcasts/actions"
+import { fetchPodcastSearch, getFavoritePodcasts } from "@/app/podcasts/actions"
 import { useToast } from "@/hooks/use-toast"
 
 interface Podcast {
@@ -19,6 +16,13 @@ interface Podcast {
   artworkUrl100: string
   primaryGenreName?: string
   trackExplicitness?: string
+  isFavorite?: boolean
+}
+
+interface Genre {
+  id: string
+  name: string
+  slug: string
 }
 
 interface PodcastListProps {
@@ -26,6 +30,8 @@ interface PodcastListProps {
   title?: string
   showSearch?: boolean
   showFilters?: boolean
+  showFavoritesOnly?: boolean
+  availableGenres?: Genre[]
 }
 
 export function PodcastList({
@@ -33,13 +39,55 @@ export function PodcastList({
   title = "Podcasts",
   showSearch = true,
   showFilters = true,
+  showFavoritesOnly = false,
+  availableGenres = [],
 }: PodcastListProps) {
   const [podcasts, setPodcasts] = useState<Podcast[]>(initialPodcasts)
   const [searchTerm, setSearchTerm] = useState("")
   const [isSearching, setIsSearching] = useState(false)
   const [selectedGenre, setSelectedGenre] = useState<string>("all")
   const [sortBy, setSortBy] = useState<string>("name")
+  const [isLoading, setIsLoading] = useState(false)
   const { toast } = useToast()
+
+  // Load favorites if showFavoritesOnly is true
+  React.useEffect(() => {
+    if (showFavoritesOnly) {
+      loadFavorites()
+    }
+  }, [showFavoritesOnly])
+
+  const loadFavorites = async () => {
+    setIsLoading(true)
+    try {
+      const result = await getFavoritePodcasts()
+      if (result.success) {
+        setPodcasts(result.data)
+      } else {
+        if (result.authRequired) {
+          toast({
+            title: "Please sign in",
+            description: "Sign in to view your favorite podcasts",
+            variant: "destructive",
+          })
+        } else {
+          toast({
+            title: "Error",
+            description: result.error || "Failed to load favorites",
+            variant: "destructive",
+          })
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "An unexpected error occurred",
+        variant: "destructive",
+      })
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -112,9 +160,9 @@ export function PodcastList({
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Genres</SelectItem>
-                  {Object.entries(podcastGenres).map(([name, id]) => (
-                    <SelectItem key={id} value={name}>
-                      {name}
+                  {availableGenres.map((genre) => (
+                    <SelectItem key={genre.id} value={genre.name}>
+                      {genre.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -139,9 +187,21 @@ export function PodcastList({
         </div>
       )}
 
-      {filteredPodcasts.length === 0 ? (
+      {isLoading ? (
         <div className="text-center py-12">
-          <p className="text-muted-foreground">No podcasts found</p>
+          <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-brand-600"></div>
+          <p className="text-muted-foreground mt-2">Loading podcasts...</p>
+        </div>
+      ) : filteredPodcasts.length === 0 ? (
+        <div className="text-center py-12">
+          <p className="text-muted-foreground">
+            {showFavoritesOnly ? "No favorite podcasts yet" : "No podcasts found"}
+          </p>
+          {showFavoritesOnly && (
+            <p className="text-sm text-muted-foreground mt-2">
+              Start exploring podcasts and add some to your favorites!
+            </p>
+          )}
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
@@ -151,9 +211,10 @@ export function PodcastList({
               id={podcast.collectionId.toString()}
               title={podcast.collectionName}
               artist={podcast.artistName}
-              image={podcast.artworkUrl100.replace("100x100", "600x600")}
+              image={podcast.artworkUrl100}
               category={podcast.primaryGenreName}
               explicit={podcast.trackExplicitness === "explicit"}
+              isFavorite={podcast.isFavorite}
             />
           ))}
         </div>

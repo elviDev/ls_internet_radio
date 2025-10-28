@@ -12,9 +12,6 @@ export function Navbar() {
           <Link href="/" className="hover:text-primary">
             Home
           </Link>
-          <Link href="/dashboard" className="hover:text-primary">
-            Dashboard
-          </Link>
           <AuthNav />
         </nav>
       </div>

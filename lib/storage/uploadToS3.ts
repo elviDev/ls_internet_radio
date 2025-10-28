@@ -1,29 +1,32 @@
-import { PutObjectCommand } from "@aws-sdk/client-s3";
-import { s3 } from "./s3";
-import { randomUUID } from "crypto";
-import mime from "mime-types";
+import { writeFile, mkdir } from 'fs/promises'
+import { join } from 'path'
+import { randomUUID } from 'crypto'
 
-export async function uploadToS3(
-  fileBuffer: Buffer,
-  fileName: string,
-  fileType: string,
-  folder: string
-) {
-  const extension = mime.extension(fileType) || "bin";
-  const key = `${folder}/${randomUUID()}.${extension}`;
+export async function uploadToS3(buffer: Buffer, fileName: string, fileType: string, folder: string) {
+  try {
+    // Create uploads directory if it doesn't exist
+    const uploadsDir = join(process.cwd(), 'public', 'uploads', folder)
+    await mkdir(uploadsDir, { recursive: true })
 
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: process.env.S3_BUCKET!,
-      Key: key,
-      Body: fileBuffer,
-      ContentType: fileType,
-      ACL: "public-read",
-    })
-  );
+    // Generate unique filename
+    const fileExtension = fileName.split('.').pop()
+    const uniqueFileName = `${randomUUID()}.${fileExtension}`
+    const filePath = join(uploadsDir, uniqueFileName)
 
-  return {
-    url: `${process.env.S3_ENDPOINT}/${process.env.S3_BUCKET}/${key}`,
-    key,
-  };
+    // Save buffer to file
+    await writeFile(filePath, buffer)
+
+    // Return URL that can be accessed publicly
+    const url = `/uploads/${folder}/${uniqueFileName}`
+
+    return {
+      url,
+      key: uniqueFileName,
+      bucket: 'local',
+      size: buffer.length
+    }
+  } catch (error) {
+    console.error('Upload error:', error)
+    throw new Error('Failed to upload file')
+  }
 }

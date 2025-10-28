@@ -1,123 +1,207 @@
-import Image from "next/image";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Calendar, Clock, MapPin, Users } from "lucide-react";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Input } from "@/components/ui/input";
+"use client"
+
+import { useState, useEffect } from "react"
+import Image from "next/image"
+import { Button } from "@/components/ui/button"
+import { Card, CardContent } from "@/components/ui/card"
+import { Badge } from "@/components/ui/badge"
+import { Calendar, Clock, MapPin, Users, Heart, ExternalLink } from "lucide-react"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Input } from "@/components/ui/input"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@/components/ui/select"
+import { useToast } from "@/hooks/use-toast"
+import { Skeleton } from "@/components/ui/skeleton"
 
-const events = [
-  {
-    id: 1,
-    title: "Live Podcast Recording: Tech Trends 2023",
-    date: "Oct 15, 2023",
-    time: "6:00 PM - 8:00 PM",
-    location: "Studio One, Downtown",
-    category: "Live Recording",
-    image: "/placeholder.svg?height=400&width=800&text=Tech+Trends+2023",
-    description:
-      "Join us for a live recording of our popular Tech Talks Weekly podcast. This special episode will feature industry experts discussing the most impactful tech trends of 2023 and predictions for the coming year.",
-    host: "Sarah Johnson",
-    attendees: 87,
-    isFeatured: true,
-  },
-  {
-    id: 2,
-    title: "Meet & Greet with Podcast Hosts",
-    date: "Oct 22, 2023",
-    time: "3:00 PM - 5:00 PM",
-    location: "Central Park Pavilion",
-    category: "Community",
-    image: "/placeholder.svg?height=400&width=800&text=Meet+and+Greet",
-    description:
-      "Meet your favorite WaveStream hosts in person! Get autographs, take photos, and participate in Q&A sessions with the voices behind our most popular shows.",
-    host: "WaveStream Team",
-    attendees: 124,
-    isFeatured: true,
-  },
-  {
-    id: 3,
-    title: "Audiobook Launch: 'The Silent Echo'",
-    date: "Nov 5, 2023",
-    time: "7:00 PM - 9:00 PM",
-    location: "City Library Auditorium",
-    category: "Book Launch",
-    image: "/placeholder.svg?height=400&width=800&text=Silent+Echo+Launch",
-    description:
-      "Celebrate the launch of 'The Silent Echo', the latest thriller from bestselling author J.R. Morgan. Join us for a reading, discussion, and exclusive first listen to the audiobook narrated by award-winning voice actor Elena Rodriguez.",
-    host: "J.R. Morgan & Elena Rodriguez",
-    attendees: 56,
-    isFeatured: true,
-  },
-  {
-    id: 4,
-    title: "Music Industry Panel Discussion",
-    date: "Nov 12, 2023",
-    time: "4:00 PM - 6:00 PM",
-    location: "Sound Wave Studio",
-    category: "Panel Discussion",
-    image: "/placeholder.svg?height=400&width=800&text=Music+Industry+Panel",
-    description:
-      "Industry professionals discuss the changing landscape of music production, distribution, and consumption in the digital age. Perfect for aspiring musicians and music business enthusiasts.",
-    host: "DJ Marcus & Mia Chen",
-    attendees: 42,
-    isFeatured: false,
-  },
-  {
-    id: 5,
-    title: "Radio Drama Workshop",
-    date: "Nov 18, 2023",
-    time: "10:00 AM - 2:00 PM",
-    location: "Community Arts Center",
-    category: "Workshop",
-    image: "/placeholder.svg?height=400&width=800&text=Radio+Drama+Workshop",
-    description:
-      "Learn the art of radio drama in this hands-on workshop. Participants will create, perform, and record their own short radio plays with guidance from professional voice actors and sound engineers.",
-    host: "Jordan Taylor",
-    attendees: 30,
-    isFeatured: false,
-  },
-  {
-    id: 6,
-    title: "Holiday Broadcast Special",
-    date: "Dec 20, 2023",
-    time: "7:00 PM - 10:00 PM",
-    location: "Town Square",
-    category: "Live Broadcast",
-    image: "/placeholder.svg?height=400&width=800&text=Holiday+Broadcast",
-    description:
-      "Join us for our annual holiday broadcast live from Town Square! Enjoy musical performances, special guest interviews, and community stories celebrating the season. Hot cocoa and treats provided!",
-    host: "Alex Rivera & Full WaveStream Team",
-    attendees: 215,
-    isFeatured: false,
-  },
-];
+interface Event {
+  id: string
+  title: string
+  description: string
+  startTime: string
+  endTime?: string
+  eventType: string
+  location?: string
+  venue?: string
+  isVirtual: boolean
+  virtualLink?: string
+  isPaid: boolean
+  ticketPrice?: number
+  maxAttendees?: number
+  currentAttendees: number
+  imageUrl?: string
+  organizer: {
+    id: string
+    firstName: string
+    lastName: string
+  }
+  isFeatured: boolean
+  isRegistered?: boolean
+}
 
 const categories = [
-  "All",
-  "Live Recording",
-  "Community",
-  "Book Launch",
-  "Panel Discussion",
-  "Workshop",
-  "Live Broadcast",
-];
+  { value: "all", label: "All Events" },
+  { value: "concert", label: "Concerts" },
+  { value: "meetup", label: "Meetups" },
+  { value: "interview", label: "Interviews" },
+  { value: "special-broadcast", label: "Special Broadcasts" },
+  { value: "contest", label: "Contests" },
+  { value: "giveaway", label: "Giveaways" },
+  { value: "community-event", label: "Community Events" },
+  { value: "fundraiser", label: "Fundraisers" }
+]
 
 export default function EventsPage() {
+  const [events, setEvents] = useState<Event[]>([])
+  const [featuredEvents, setFeaturedEvents] = useState<Event[]>([])
+  const [loading, setLoading] = useState(true)
+  const [registering, setRegistering] = useState<string | null>(null)
+  const [searchTerm, setSearchTerm] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [sortBy, setSortBy] = useState("date")
+  const [currentUser, setCurrentUser] = useState<any>(null)
+  const { toast } = useToast()
+
+  useEffect(() => {
+    fetchEvents()
+    fetchCurrentUser()
+  }, [selectedCategory, searchTerm, sortBy])
+
+  const fetchCurrentUser = async () => {
+    try {
+      const response = await fetch('/api/auth/me')
+      if (response.ok) {
+        const data = await response.json()
+        setCurrentUser(data.user)
+      }
+    } catch (error) {
+      console.error('Error fetching current user:', error)
+    }
+  }
+
+  const fetchEvents = async () => {
+    try {
+      setLoading(true)
+      const params = new URLSearchParams({
+        category: selectedCategory,
+        search: searchTerm,
+        sort: sortBy
+      })
+      
+      const [eventsResponse, featuredResponse] = await Promise.all([
+        fetch(`/api/events?${params}`),
+        fetch(`/api/events?featured=true`)
+      ])
+      
+      if (eventsResponse.ok) {
+        const eventsData = await eventsResponse.json()
+        setEvents(eventsData.events)
+      }
+      
+      if (featuredResponse.ok) {
+        const featuredData = await featuredResponse.json()
+        setFeaturedEvents(featuredData.events.slice(0, 3))
+      }
+    } catch (error) {
+      console.error('Error fetching events:', error)
+      toast({
+        title: "Error",
+        description: "Failed to load events",
+        variant: "destructive"
+      })
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const handleRegister = async (eventId: string) => {
+    if (!currentUser) {
+      toast({
+        title: "Authentication Required",
+        description: "Please log in to register for events",
+        variant: "destructive"
+      })
+      return
+    }
+
+    setRegistering(eventId)
+    try {
+      const response = await fetch(`/api/events/${eventId}/register`, {
+        method: 'POST'
+      })
+      
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Successfully registered for event!"
+        })
+        fetchEvents() // Refresh to update registration status
+      } else {
+        const error = await response.json()
+        toast({
+          title: "Registration Failed",
+          description: error.error || "Failed to register for event",
+          variant: "destructive"
+        })
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to register for event",
+        variant: "destructive"
+      })
+    } finally {
+      setRegistering(null)
+    }
+  }
+
+  const formatDate = (dateString: string) => {
+    return new Date(dateString).toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    })
+  }
+
+  const formatTime = (dateString: string) => {
+    return new Date(dateString).toLocaleTimeString('en-US', {
+      hour: 'numeric',
+      minute: '2-digit',
+      hour12: true
+    })
+  }
+
+  const getEventTypeLabel = (eventType: string) => {
+    return eventType.replace('_', ' ').toLowerCase().replace(/\b\w/g, l => l.toUpperCase())
+  }
+
+  if (loading) {
+    return (
+      <div className="container mx-auto px-4 py-12">
+        <div className="max-w-4xl mx-auto text-center mb-12">
+          <Skeleton className="h-12 w-96 mx-auto mb-4" />
+          <Skeleton className="h-6 w-[600px] mx-auto" />
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-12">
+          {[1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-96 w-full" />
+          ))}
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="container mx-auto px-4 py-12">
       <div className="max-w-4xl mx-auto text-center mb-12">
         <h1 className="text-4xl font-bold mb-4">Upcoming Events</h1>
         <p className="text-xl text-muted-foreground">
-          Join us for live recordings, meet & greets, workshops, and special
-          broadcasts.
+          Join us for live recordings, meet & greets, workshops, and special broadcasts.
         </p>
       </div>
 
@@ -127,6 +211,8 @@ export default function EventsPage() {
             <Input
               type="search"
               placeholder="Search events..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
               className="pl-10 pr-4 py-2 w-full"
             />
             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -148,7 +234,7 @@ export default function EventsPage() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Select defaultValue="date">
+          <Select value={sortBy} onValueChange={setSortBy}>
             <SelectTrigger className="w-[180px]">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
@@ -158,159 +244,202 @@ export default function EventsPage() {
               <SelectItem value="name">Name (A-Z)</SelectItem>
             </SelectContent>
           </Select>
-          <Select defaultValue="all">
+          <Select value={selectedCategory} onValueChange={setSelectedCategory}>
             <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Month" />
+              <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Months</SelectItem>
-              <SelectItem value="oct">October</SelectItem>
-              <SelectItem value="nov">November</SelectItem>
-              <SelectItem value="dec">December</SelectItem>
+              {categories.map((category) => (
+                <SelectItem key={category.value} value={category.value}>
+                  {category.label}
+                </SelectItem>
+              ))}
             </SelectContent>
           </Select>
         </div>
       </div>
 
-      <div className="mb-12">
-        <h2 className="text-2xl font-bold mb-6">Featured Events</h2>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          {events
-            .filter((event) => event.isFeatured)
-            .map((event) => (
-              <Card
-                key={event.id}
-                className="overflow-hidden hover:shadow-md transition-all"
-              >
+      {featuredEvents.length > 0 && (
+        <div className="mb-12">
+          <h2 className="text-2xl font-bold mb-6">Featured Events</h2>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            {featuredEvents.map((event) => (
+              <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-all group">
                 <div className="relative h-48">
                   <Image
-                    src={event.image || "/placeholder.svg"}
+                    src={event.imageUrl || "/placeholder.svg?height=400&width=600"}
                     alt={event.title}
                     fill
-                    className="object-cover"
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
                   />
                   <div className="absolute top-3 left-3">
-                    <Badge className="bg-brand-600 hover:bg-brand-700">
-                      {event.category}
+                    <Badge className="bg-purple-600 hover:bg-purple-700">
+                      {getEventTypeLabel(event.eventType)}
                     </Badge>
                   </div>
+                  {event.isPaid && (
+                    <div className="absolute top-3 right-3">
+                      <Badge variant="secondary">
+                        ${event.ticketPrice}
+                      </Badge>
+                    </div>
+                  )}
                 </div>
                 <CardContent className="p-6">
-                  <h3 className="font-semibold text-lg mb-4">{event.title}</h3>
-                  <div className="space-y-3 mb-6">
+                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">{event.title}</h3>
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                    {event.description}
+                  </p>
+                  <div className="space-y-2 mb-6">
                     <div className="flex items-center text-sm">
                       <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>{event.date}</span>
+                      <span>{formatDate(event.startTime)}</span>
                     </div>
                     <div className="flex items-center text-sm">
                       <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>{event.time}</span>
+                      <span>{formatTime(event.startTime)}</span>
                     </div>
                     <div className="flex items-center text-sm">
-                      <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>{event.location}</span>
+                      {event.isVirtual ? (
+                        <>
+                          <ExternalLink className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>Virtual Event</span>
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{event.location || event.venue}</span>
+                        </>
+                      )}
                     </div>
                     <div className="flex items-center text-sm">
                       <Users className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>{event.attendees} attending</span>
+                      <span>{event.currentAttendees} attending</span>
+                      {event.maxAttendees && (
+                        <span className="text-muted-foreground"> / {event.maxAttendees}</span>
+                      )}
                     </div>
                   </div>
-                  <Button className="w-full bg-brand-600 hover:bg-brand-700">
-                    Register Now
+                  <Button 
+                    className="w-full bg-purple-600 hover:bg-purple-700"
+                    onClick={() => handleRegister(event.id)}
+                    disabled={registering === event.id || event.isRegistered}
+                  >
+                    {registering === event.id ? "Registering..." : 
+                     event.isRegistered ? "Registered" : "Register Now"}
                   </Button>
                 </CardContent>
               </Card>
             ))}
+          </div>
+        </div>
+      )}
+
+      <div className="mb-12">
+        <h2 className="text-2xl font-bold mb-6">All Events</h2>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {events.map((event) => (
+            <Card key={event.id} className="overflow-hidden hover:shadow-lg transition-all group">
+              <div className="flex flex-col md:flex-row h-full">
+                <div className="relative w-full md:w-1/3 h-48 md:h-auto">
+                  <Image
+                    src={event.imageUrl || "/placeholder.svg?height=300&width=400"}
+                    alt={event.title}
+                    fill
+                    className="object-cover group-hover:scale-105 transition-transform duration-300"
+                  />
+                  {event.isPaid && (
+                    <div className="absolute top-2 right-2">
+                      <Badge variant="secondary" className="text-xs">
+                        ${event.ticketPrice}
+                      </Badge>
+                    </div>
+                  )}
+                </div>
+                <CardContent className="p-6 w-full md:w-2/3 flex flex-col">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Badge className="bg-purple-100 text-purple-800 hover:bg-purple-200">
+                      {getEventTypeLabel(event.eventType)}
+                    </Badge>
+                    {event.isRegistered && (
+                      <Badge variant="outline" className="text-green-600 border-green-600">
+                        <Heart className="h-3 w-3 mr-1 fill-current" />
+                        Registered
+                      </Badge>
+                    )}
+                  </div>
+                  <h3 className="font-semibold text-lg mb-2 line-clamp-2">
+                    {event.title}
+                  </h3>
+                  <p className="text-sm text-muted-foreground mb-4 line-clamp-2 flex-grow">
+                    {event.description}
+                  </p>
+                  <div className="space-y-2 mb-4">
+                    <div className="flex items-center text-sm">
+                      <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <span>{formatDate(event.startTime)}</span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <span>{formatTime(event.startTime)}</span>
+                    </div>
+                    <div className="flex items-center text-sm">
+                      {event.isVirtual ? (
+                        <>
+                          <ExternalLink className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>Virtual Event</span>
+                        </>
+                      ) : (
+                        <>
+                          <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
+                          <span>{event.location || event.venue}</span>
+                        </>
+                      )}
+                    </div>
+                    <div className="flex items-center text-sm">
+                      <Users className="h-4 w-4 mr-2 text-muted-foreground" />
+                      <span>{event.currentAttendees} attending</span>
+                      {event.maxAttendees && (
+                        <span className="text-muted-foreground"> / {event.maxAttendees}</span>
+                      )}
+                    </div>
+                  </div>
+                  <Button 
+                    className="w-full bg-purple-600 hover:bg-purple-700 mt-auto"
+                    onClick={() => handleRegister(event.id)}
+                    disabled={registering === event.id || event.isRegistered}
+                  >
+                    {registering === event.id ? "Registering..." : 
+                     event.isRegistered ? "Registered" : "Register Now"}
+                  </Button>
+                </CardContent>
+              </div>
+            </Card>
+          ))}
         </div>
       </div>
 
-      <Tabs defaultValue="all" className="mb-12">
-        <TabsList className="flex flex-wrap h-auto p-1 mb-8">
-          {categories.map((category) => (
-            <TabsTrigger
-              key={category}
-              value={
-                category === "All"
-                  ? "all"
-                  : category.toLowerCase().replace(" ", "-")
-              }
-              className="mb-1"
+      {events.length === 0 && !loading && (
+        <div className="text-center py-12">
+          <h3 className="text-lg font-semibold mb-2">No events found</h3>
+          <p className="text-muted-foreground mb-4">
+            {searchTerm || selectedCategory !== "all" 
+              ? "Try adjusting your search or filters" 
+              : "Check back soon for upcoming events!"}
+          </p>
+          {(searchTerm || selectedCategory !== "all") && (
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setSearchTerm("")
+                setSelectedCategory("all")
+              }}
             >
-              {category}
-            </TabsTrigger>
-          ))}
-        </TabsList>
-
-        {categories.map((category) => (
-          <TabsContent
-            key={category}
-            value={
-              category === "All"
-                ? "all"
-                : category.toLowerCase().replace(" ", "-")
-            }
-            className="mt-0"
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {events
-                .filter(
-                  (event) => category === "All" || event.category === category
-                )
-                .map((event) => (
-                  <Card
-                    key={event.id}
-                    className="overflow-hidden hover:shadow-md transition-all"
-                  >
-                    <div className="flex flex-col md:flex-row h-full">
-                      <div className="relative w-full md:w-1/3 h-48 md:h-auto">
-                        <Image
-                          src={event.image || "/placeholder.svg"}
-                          alt={event.title}
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                      <CardContent className="p-6 w-full md:w-2/3">
-                        <Badge className="mb-2 bg-brand-100 text-brand-800 dark:bg-brand-900 dark:text-brand-200 hover:bg-brand-200 dark:hover:bg-brand-800">
-                          {event.category}
-                        </Badge>
-                        <h3 className="font-semibold text-lg mb-2">
-                          {event.title}
-                        </h3>
-                        <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
-                          {event.description}
-                        </p>
-                        <div className="space-y-2 mb-4">
-                          <div className="flex items-center text-sm">
-                            <Calendar className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span>{event.date}</span>
-                          </div>
-                          <div className="flex items-center text-sm">
-                            <Clock className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span>{event.time}</span>
-                          </div>
-                          <div className="flex items-center text-sm">
-                            <MapPin className="h-4 w-4 mr-2 text-muted-foreground" />
-                            <span>{event.location}</span>
-                          </div>
-                        </div>
-                        <Button className="w-full bg-brand-600 hover:bg-brand-700">
-                          Register Now
-                        </Button>
-                      </CardContent>
-                    </div>
-                  </Card>
-                ))}
-            </div>
-          </TabsContent>
-        ))}
-      </Tabs>
-
-      <div className="text-center">
-        <Button variant="outline" size="lg" className="px-8">
-          Load More Events
-        </Button>
-      </div>
+              Clear Filters
+            </Button>
+          )}
+        </div>
+      )}
     </div>
-  );
+  )
 }

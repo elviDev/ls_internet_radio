@@ -1,8 +1,6 @@
 "use client"
 
-import type React from "react"
-
-import { useState } from "react"
+import React, { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Textarea } from "@/components/ui/textarea"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
@@ -20,43 +18,55 @@ interface Comment {
 
 interface PodcastCommentsProps {
   initialComments: Comment[]
-  podcastId: string
+  episodeId?: string
+  onAddComment?: (content: string) => Promise<{ success: boolean }>
+  isLoading?: boolean
   className?: string
 }
 
-export function PodcastComments({ initialComments, podcastId, className }: PodcastCommentsProps) {
+export function PodcastComments({ 
+  initialComments, 
+  episodeId, 
+  onAddComment,
+  isLoading = false,
+  className 
+}: PodcastCommentsProps) {
   const [comments, setComments] = useState<Comment[]>(initialComments)
   const [newComment, setNewComment] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const { toast } = useToast()
   const { user } = useAuth()
 
+  // Update comments when initialComments change
+  React.useEffect(() => {
+    setComments(initialComments)
+  }, [initialComments])
+
   const handleSubmitComment = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newComment.trim()) return
+    if (!newComment.trim() || !episodeId) return
+
+    if (!onAddComment) {
+      toast({
+        title: "Error",
+        description: "Comments not available for this episode",
+        variant: "destructive",
+      })
+      return
+    }
 
     setIsSubmitting(true)
 
-    // In a real app, this would be a server action to save the comment
-    // For now, we'll just simulate it with a timeout
-    setTimeout(() => {
-      const comment: Comment = {
-        id: `comment-${Date.now()}`,
-        author: "Current User",
-        authorImage: "/placeholder.svg?height=100&width=100",
-        content: newComment,
-        date: new Date().toISOString(),
+    try {
+      const result = await onAddComment(newComment)
+      if (result.success) {
+        setNewComment("")
       }
-
-      setComments((prev) => [comment, ...prev])
-      setNewComment("")
+    } catch (error) {
+      // Error handling is done in the onAddComment function
+    } finally {
       setIsSubmitting(false)
-
-      toast({
-        title: "Comment added",
-        description: "Your comment has been added successfully",
-      })
-    }, 500)
+    }
   }
 
   const formatDate = (dateString: string) => {
@@ -104,8 +114,15 @@ export function PodcastComments({ initialComments, podcastId, className }: Podca
       </form>
 
       <div className="space-y-6">
-        {comments.length === 0 ? (
-          <p className="text-center text-muted-foreground py-4">No comments yet. Be the first to comment!</p>
+        {isLoading ? (
+          <div className="text-center py-4">
+            <div className="inline-block animate-spin rounded-full h-6 w-6 border-b-2 border-brand-600"></div>
+            <p className="text-muted-foreground mt-2">Loading comments...</p>
+          </div>
+        ) : comments.length === 0 ? (
+          <p className="text-center text-muted-foreground py-4">
+            {episodeId ? "No comments yet. Be the first to comment!" : "Select an episode to view comments"}
+          </p>
         ) : (
           comments.map((comment) => (
             <div key={comment.id} className="flex items-start gap-4">

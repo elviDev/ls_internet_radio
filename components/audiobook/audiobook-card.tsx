@@ -12,12 +12,27 @@ import { toggleFavoriteAudiobook } from "@/app/audiobooks/actions"
 import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 
+function formatDuration(seconds?: number): string {
+  if (!seconds || isNaN(seconds)) return "0:00"
+  
+  const hours = Math.floor(seconds / 3600)
+  const minutes = Math.floor((seconds % 3600) / 60)
+  
+  if (hours > 0) {
+    return `${hours}h ${minutes}m`
+  }
+  return `${minutes}m`
+}
+
 interface AudiobookCardProps {
   id: string
   title: string
   author: string
+  narrator?: string
   image: string
   category?: string
+  chapterCount?: number
+  duration?: number
   rating?: number
   isFavorite?: boolean
   onPlay?: () => void
@@ -28,8 +43,11 @@ export function AudiobookCard({
   id,
   title,
   author,
+  narrator,
   image,
   category,
+  chapterCount,
+  duration,
   rating,
   isFavorite: initialIsFavorite = false,
   onPlay,
@@ -149,6 +167,11 @@ export function AudiobookCard({
         <CardContent className="p-4">
           <h3 className="font-semibold text-lg mb-1 line-clamp-1">{title}</h3>
           <p className="text-sm text-muted-foreground line-clamp-1 mb-2">by {author}</p>
+          {narrator && <p className="text-xs text-muted-foreground line-clamp-1 mb-2">Narrated by {narrator}</p>}
+          <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
+            {chapterCount && <span>{chapterCount} chapters</span>}
+            {duration && <span>{formatDuration(duration)}</span>}
+          </div>
           {renderRating()}
         </CardContent>
       </Card>

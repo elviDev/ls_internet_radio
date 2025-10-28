@@ -17,14 +17,14 @@ const updateAudiobookSchema = z.object({
 
 export async function PATCH(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   const user = await getCurrentUser();
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const { id } = params;
+  const { id } = await params;
 
   const existing = await prisma.audiobook.findUnique({ where: { id } });
 
@@ -32,7 +32,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Audiobook not found" }, { status: 404 });
   }
 
-  const isAuthorized = user.role === "ADMIN" || user.id === existing.authorId;
+  const isAuthorized = user.role === "ADMIN" || user.id === existing.createdById;
   if (!isAuthorized) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -86,10 +86,10 @@ export async function PATCH(
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id } = params;
+    const { id } = await params;
     const { searchParams } = new URL(req.url);
     const includeChapters = searchParams.get("withChapters") === "true";
     const slug = searchParams.get("slug") || undefined;
@@ -102,11 +102,19 @@ export async function GET(
         OR: [{ id }, { slug: slug }],
       },
       include: {
-        author: {
+        createdBy: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            profileImage: true,
+          },
+        },
+        genre: {
           select: {
             id: true,
             name: true,
-            profileImage: true,
+            slug: true,
           },
         },
         ...(includeChapters && {
@@ -131,7 +139,7 @@ export async function GET(
       );
     }
 
-    const isOwner = user?.id === audiobook.authorId;
+    const isOwner = user?.id === audiobook.createdById;
     const isAdmin = user?.role === "ADMIN";
 
     // If not published, check access
@@ -139,7 +147,13 @@ export async function GET(
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    return NextResponse.json({ data: audiobook });
+    // Transform the response to include author info
+    const transformedAudiobook = {
+      ...audiobook,
+      author: audiobook.createdBy ? `${audiobook.createdBy.firstName} ${audiobook.createdBy.lastName}` : 'Unknown Author'
+    };
+    
+    return NextResponse.json({ data: transformedAudiobook });
   } catch (error) {
     console.error("Error fetching audiobook:", error);
     return NextResponse.json(
