@@ -6,7 +6,7 @@ import { z } from "zod";
 const updateBroadcastSchema = z.object({
   title: z.string().min(1, "Title is required").optional(),
   description: z.string().min(1, "Description is required").optional(),
-  status: z.enum(["SCHEDULED", "LIVE", "ENDED"]).optional(),
+  status: z.enum(["SCHEDULED", "READY", "LIVE", "ENDED"]).optional(),
   startTime: z.string().datetime().optional(),
   endTime: z.string().datetime().optional(),
   streamUrl: z.string().url().optional(),

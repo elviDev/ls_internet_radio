@@ -1,6 +1,9 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useEffect, useRef, useCallback } from "react"
+import { ChannelAudioMonitor } from "./channel-audio-monitor"
+import { useAudioProcessor } from "@/hooks/use-audio-processor"
+import { useAudio } from "@/contexts/audio-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -66,9 +69,74 @@ export function MixingBoard({
   onMasterVolumeChange,
   onCueChannel 
 }: MixingBoardProps) {
-  const [masterVolume, setMasterVolume] = useState(75)
   const [headphoneVolume, setHeadphoneVolume] = useState(60)
   const [recordingEnabled, setRecordingEnabled] = useState(false)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [showAnalyzer, setShowAnalyzer] = useState(false)
+  const [audioEnabled, setAudioEnabled] = useState(false)
+  const [analyzerData, setAnalyzerData] = useState<Uint8Array>(new Uint8Array(0))
+  
+  // Global audio context for music control
+  const { 
+    volume: globalMusicVolume, 
+    setVolume: setGlobalMusicVolume, 
+    isMuted: globalMusicMuted, 
+    toggleMute: toggleGlobalMusicMute,
+    gain: globalMusicGain,
+    setGain: setGlobalMusicGain,
+    eq: globalMusicEQ,
+    setEQ: setGlobalMusicEQ,
+    peak: globalMusicPeak
+  } = useAudio()
+
+  // Initialize audio processor
+  const audioProcessor = useAudioProcessor({
+    masterVolume: 75,
+    limiterThreshold: 85,
+    noiseGate: 15,
+    channels: [
+      {
+        id: "mic1",
+        type: "mic",
+        volume: 75,
+        gain: 50,
+        muted: false,
+        solo: false,
+        eq: { low: 50, mid: 50, high: 50 },
+        effects: { reverb: 10, echo: 0, chorus: 0 }
+      },
+      {
+        id: "mic2",
+        type: "mic",
+        volume: 0,
+        gain: 50,
+        muted: true,
+        solo: false,
+        eq: { low: 50, mid: 50, high: 50 },
+        effects: { reverb: 5, echo: 0, chorus: 0 }
+      },
+      {
+        id: "music",
+        type: "music",
+        volume: 60,
+        gain: 45,
+        muted: false,
+        solo: false,
+        eq: { low: 55, mid: 50, high: 48 },
+        effects: { reverb: 0, echo: 0, chorus: 0 }
+      },
+      {
+        id: "effects",
+        type: "effects",
+        volume: 45,
+        gain: 40,
+        muted: false,
+        solo: false,
+        eq: { low: 45, mid: 55, high: 60 },
+        effects: { reverb: 15, echo: 5, chorus: 0 }
+      }
+    ]
+  })
   const [channels, setChannels] = useState<AudioChannel[]>([
     {
       id: "mic1",
@@ -102,13 +170,13 @@ export function MixingBoard({
       id: "music",
       name: "Music",
       type: "music",
-      volume: 60,
-      gain: 45,
-      muted: false,
+      volume: globalMusicVolume,
+      gain: globalMusicGain,
+      muted: globalMusicMuted,
       solo: false,
       recording: true,
-      peak: 0,
-      eq: { low: 55, mid: 50, high: 48 },
+      peak: globalMusicPeak,
+      eq: globalMusicEQ,
       compressor: { enabled: false, threshold: 80, ratio: 2 },
       effects: { reverb: 0, echo: 0, chorus: 0 }
     },
@@ -128,40 +196,80 @@ export function MixingBoard({
     }
   ])
 
-  const peakMetersRef = useRef<{ [key: string]: NodeJS.Timeout }>({})
-
-  // Simulate peak meters
+  // Sync music channel with global audio state
   useEffect(() => {
-    if (isLive) {
-      channels.forEach(channel => {
-        if (!channel.muted && channel.volume > 0) {
-          peakMetersRef.current[channel.id] = setInterval(() => {
-            const basePeak = (channel.volume / 100) * 80
-            const variation = Math.random() * 20 - 10
-            const newPeak = Math.max(0, Math.min(100, basePeak + variation))
-            
-            setChannels(prev => prev.map(ch => 
-              ch.id === channel.id ? { ...ch, peak: newPeak } : ch
-            ))
-          }, 100)
-        }
-      })
+    setChannels(prev => prev.map(ch => 
+      ch.id === "music" 
+        ? { 
+            ...ch, 
+            volume: globalMusicVolume, 
+            muted: globalMusicMuted,
+            gain: globalMusicGain,
+            eq: globalMusicEQ,
+            peak: globalMusicPeak
+          }
+        : ch
+    ))
+  }, [globalMusicVolume, globalMusicMuted, globalMusicGain, globalMusicEQ, globalMusicPeak])
+
+  // Update peak for a specific channel
+  const updateChannelPeak = useCallback((channelId: string, peak: number) => {
+    setChannels(prev => prev.map(ch => 
+      ch.id === channelId ? { ...ch, peak } : ch
+    ))
+  }, [])
+
+  // Real-time analyzer updates
+  useEffect(() => {
+    if (!showAnalyzer || !audioEnabled) return
+
+    const updateAnalyzer = () => {
+      const data = audioProcessor.getMasterAnalyserData()
+      setAnalyzerData(data)
     }
 
-    return () => {
-      Object.values(peakMetersRef.current).forEach(clearInterval)
-    }
-  }, [isLive, channels])
+    const intervalId = setInterval(updateAnalyzer, 50) // 20fps
+    return () => clearInterval(intervalId)
+  }, [showAnalyzer, audioEnabled, audioProcessor])
+
+  // Enable audio processing
+  const enableAudio = async () => {
+    const success = await audioProcessor.initializeAudio()
+    setAudioEnabled(success)
+  }
 
   const updateChannel = (channelId: string, changes: Partial<AudioChannel>) => {
     setChannels(prev => prev.map(ch => 
       ch.id === channelId ? { ...ch, ...changes } : ch
     ))
+    
+    // Handle music channel controls through global audio context
+    if (channelId === "music") {
+      if (changes.volume !== undefined) {
+        setGlobalMusicVolume(changes.volume)
+      }
+      if (changes.muted !== undefined && changes.muted !== globalMusicMuted) {
+        toggleGlobalMusicMute()
+      }
+      if (changes.gain !== undefined) {
+        setGlobalMusicGain(changes.gain)
+      }
+      if (changes.eq !== undefined) {
+        setGlobalMusicEQ(changes.eq)
+      }
+    }
+    
+    if (audioEnabled) {
+      audioProcessor.updateChannel(channelId, changes)
+    }
+    
     onChannelChange(channelId, changes)
   }
 
   const handleMasterVolumeChange = (volume: number[]) => {
-    setMasterVolume(volume[0])
+    if (audioEnabled) {
+      audioProcessor.updateMasterVolume(volume[0])
+    }
     onMasterVolumeChange(volume[0])
   }
 
@@ -194,7 +302,7 @@ export function MixingBoard({
             <Switch
               checked={recordingEnabled}
               onCheckedChange={setRecordingEnabled}
-              disabled={!isLive}
+              disabled={false} // Always enabled for testing
             />
             <span className="text-sm">Recording</span>
             {recordingEnabled && (
@@ -214,13 +322,17 @@ export function MixingBoard({
             const Icon = getChannelIcon(channel.type)
             return (
               <div key={channel.id} className="space-y-4 p-4 border rounded-lg bg-slate-50">
+                <ChannelAudioMonitor 
+                  channel={channel} 
+                  onPeakUpdate={updateChannelPeak}
+                />
                 {/* Channel Header */}
                 <div className="text-center space-y-2">
                   <div className="flex items-center justify-center gap-2">
                     <Icon className="h-4 w-4" />
                     <span className="font-medium text-sm">{channel.name}</span>
                   </div>
-                  
+                    
                   {/* Peak Meter */}
                   <div className="relative h-2 bg-slate-200 rounded-full overflow-hidden">
                     <div 
@@ -247,7 +359,7 @@ export function MixingBoard({
                       max={100}
                       step={1}
                       className="h-2"
-                      disabled={!isLive}
+                      disabled={false} // Always enabled for testing
                     />
                     <div className="text-xs text-center text-slate-500">{channel.gain}%</div>
                   </div>
@@ -256,7 +368,7 @@ export function MixingBoard({
                   <div className="space-y-2">
                     <label className="text-xs font-medium">EQ</label>
                     <div className="grid grid-cols-3 gap-1">
-                      <div className="space-y-1">
+                      <div className="flex flex-col items-center space-y-1">
                         <Slider
                           value={[channel.eq.high]}
                           onValueChange={(value) => updateChannel(channel.id, { 
@@ -266,11 +378,11 @@ export function MixingBoard({
                           step={1}
                           orientation="vertical"
                           className="h-16"
-                          disabled={!isLive}
+                          disabled={false} // Always enabled for testing
                         />
                         <div className="text-xs text-center">HI</div>
                       </div>
-                      <div className="space-y-1">
+                      <div className="flex flex-col items-center space-y-1">
                         <Slider
                           value={[channel.eq.mid]}
                           onValueChange={(value) => updateChannel(channel.id, { 
@@ -280,11 +392,11 @@ export function MixingBoard({
                           step={1}
                           orientation="vertical"
                           className="h-16"
-                          disabled={!isLive}
+                          disabled={false} // Always enabled for testing
                         />
                         <div className="text-xs text-center">MID</div>
                       </div>
-                      <div className="space-y-1">
+                      <div className="flex flex-col items-center space-y-1">
                         <Slider
                           value={[channel.eq.low]}
                           onValueChange={(value) => updateChannel(channel.id, { 
@@ -294,7 +406,7 @@ export function MixingBoard({
                           step={1}
                           orientation="vertical"
                           className="h-16"
-                          disabled={!isLive}
+                          disabled={false} // Always enabled for testing
                         />
                         <div className="text-xs text-center">LOW</div>
                       </div>
@@ -302,7 +414,7 @@ export function MixingBoard({
                   </div>
 
                   {/* Volume Fader */}
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex flex-col items-center">
                     <label className="text-xs font-medium">Volume</label>
                     <Slider
                       value={[channel.volume]}
@@ -310,8 +422,8 @@ export function MixingBoard({
                       max={100}
                       step={1}
                       orientation="vertical"
-                      className="h-24 mx-auto"
-                      disabled={!isLive}
+                      className="h-24"
+                      disabled={false} // Always enabled for testing
                     />
                     <div className="text-xs text-center text-slate-500">{channel.volume}%</div>
                   </div>
@@ -323,7 +435,7 @@ export function MixingBoard({
                         size="sm"
                         variant={channel.muted ? "destructive" : "outline"}
                         onClick={() => updateChannel(channel.id, { muted: !channel.muted })}
-                        disabled={!isLive}
+                        disabled={false} // Always enabled for testing
                         className="text-xs h-6"
                       >
                         MUTE
@@ -332,7 +444,7 @@ export function MixingBoard({
                         size="sm"
                         variant={channel.solo ? "default" : "outline"}
                         onClick={() => updateChannel(channel.id, { solo: !channel.solo })}
-                        disabled={!isLive}
+                        disabled={false} // Always enabled for testing
                         className="text-xs h-6"
                       >
                         SOLO
@@ -342,7 +454,7 @@ export function MixingBoard({
                       size="sm"
                       variant="outline"
                       onClick={() => onCueChannel(channel.id)}
-                      disabled={!isLive}
+                      disabled={false} // Always enabled for testing
                       className="w-full text-xs h-6"
                     >
                       CUE
@@ -359,66 +471,72 @@ export function MixingBoard({
         {/* Master Controls */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {/* Master Volume */}
-          <div className="space-y-4">
+          <div className="space-y-4 flex flex-col items-center">
             <div className="text-center">
               <h4 className="font-medium">Master Output</h4>
             </div>
-            <div className="flex justify-center">
-              <div className="space-y-2">
-                <Slider
-                  value={[masterVolume]}
-                  onValueChange={handleMasterVolumeChange}
-                  max={100}
-                  step={1}
-                  orientation="vertical"
-                  className="h-32 mx-auto"
-                  disabled={!isLive}
-                />
-                <div className="text-sm text-center text-slate-600">{masterVolume}%</div>
-                <Badge variant="outline" className="w-full justify-center">
-                  <Volume2 className="h-3 w-3 mr-1" />
-                  MAIN
-                </Badge>
-              </div>
+            <div className="flex flex-col items-center space-y-2">
+              <Slider
+                value={[audioProcessor.audioState.masterVolume]}
+                onValueChange={handleMasterVolumeChange}
+                max={100}
+                step={1}
+                orientation="vertical"
+                className="h-32 w-6"
+                disabled={!audioEnabled}
+              />
+              <div className="text-sm text-center text-slate-600">{audioProcessor.audioState.masterVolume}%</div>
+              <Badge variant="outline" className="justify-center">
+                <Volume2 className="h-3 w-3 mr-1" />
+                MAIN
+              </Badge>
             </div>
           </div>
 
           {/* Headphone Monitor */}
-          <div className="space-y-4">
+          <div className="space-y-4 flex flex-col items-center">
             <div className="text-center">
               <h4 className="font-medium">Headphone Monitor</h4>
             </div>
-            <div className="flex justify-center">
-              <div className="space-y-2">
-                <Slider
-                  value={[headphoneVolume]}
-                  onValueChange={(value) => setHeadphoneVolume(value[0])}
-                  max={100}
-                  step={1}
-                  orientation="vertical"
-                  className="h-32 mx-auto"
-                  disabled={!isLive}
-                />
-                <div className="text-sm text-center text-slate-600">{headphoneVolume}%</div>
-                <Badge variant="outline" className="w-full justify-center">
-                  <Headphones className="h-3 w-3 mr-1" />
-                  CUE
-                </Badge>
-              </div>
+            <div className="flex flex-col items-center space-y-2">
+              <Slider
+                value={[headphoneVolume]}
+                onValueChange={(value) => setHeadphoneVolume(value[0])}
+                max={100}
+                step={1}
+                orientation="vertical"
+                className="h-32 w-6"
+                disabled={false} // Always enabled for testing
+              />
+              <div className="text-sm text-center text-slate-600">{headphoneVolume}%</div>
+              <Badge variant="outline" className="justify-center">
+                <Headphones className="h-3 w-3 mr-1" />
+                CUE
+              </Badge>
             </div>
           </div>
 
           {/* Control Buttons */}
-          <div className="space-y-4">
+          <div className="space-y-4 flex flex-col items-center">
             <div className="text-center">
               <h4 className="font-medium">Master Controls</h4>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-3 w-full max-w-xs">
+              {!audioEnabled && (
+                <Button 
+                  variant="default" 
+                  className="w-full h-10"
+                  onClick={enableAudio}
+                >
+                  🎤 Enable Audio
+                </Button>
+              )}
+              
               <Button 
                 variant={recordingEnabled ? "destructive" : "outline"} 
-                className="w-full"
+                className="w-full h-10"
                 onClick={() => setRecordingEnabled(!recordingEnabled)}
-                disabled={!isLive}
+                disabled={!audioEnabled}
               >
                 <div className="flex items-center gap-2">
                   <div className={`w-2 h-2 rounded-full ${recordingEnabled ? 'bg-white' : 'bg-red-500'}`} />
@@ -426,18 +544,82 @@ export function MixingBoard({
                 </div>
               </Button>
               
-              <Button variant="outline" className="w-full" disabled={!isLive}>
+              <Button 
+                variant={showAdvanced ? "default" : "outline"} 
+                className="w-full h-10" 
+                onClick={() => setShowAdvanced(!showAdvanced)}
+                disabled={!audioEnabled}
+              >
                 <Settings className="h-4 w-4 mr-2" />
                 Advanced
               </Button>
               
-              <Button variant="outline" className="w-full" disabled={!isLive}>
+              <Button 
+                variant={showAnalyzer ? "default" : "outline"} 
+                className="w-full h-10" 
+                onClick={() => setShowAnalyzer(!showAnalyzer)}
+                disabled={!audioEnabled}
+              >
                 <Activity className="h-4 w-4 mr-2" />
-                Analyzer
+                {showAnalyzer ? 'Hide Analyzer' : 'Show Analyzer'}
               </Button>
             </div>
           </div>
         </div>
+
+        {/* Advanced Settings Panel */}
+        {showAdvanced && (
+          <div className="mt-6 p-4 border rounded-lg bg-slate-50">
+            <h4 className="font-medium mb-3">Advanced Settings</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Limiter Threshold: {audioProcessor.audioState.limiterThreshold}%</label>
+                <Slider 
+                  value={[audioProcessor.audioState.limiterThreshold]} 
+                  onValueChange={(value) => audioProcessor.updateLimiterThreshold(value[0])}
+                  max={100} 
+                  step={1} 
+                  className="h-2" 
+                />
+              </div>
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Noise Gate: {audioProcessor.audioState.noiseGate}%</label>
+                <Slider 
+                  value={[audioProcessor.audioState.noiseGate]} 
+                  onValueChange={(value) => audioProcessor.updateNoiseGate(value[0])}
+                  max={50} 
+                  step={1} 
+                  className="h-2" 
+                />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Analyzer Panel */}
+        {showAnalyzer && (
+          <div className="mt-6 p-4 border rounded-lg bg-slate-50">
+            <h4 className="font-medium mb-3">Real-Time Audio Analyzer</h4>
+            <div className="flex items-end justify-center gap-1 h-32 bg-black rounded p-2">
+              {Array.from({ length: 32 }, (_, i) => {
+                const level = analyzerData[i] || 0
+                const height = (level / 255) * 100
+                const color = height > 80 ? 'bg-red-500' : height > 60 ? 'bg-yellow-500' : 'bg-green-500'
+                return (
+                  <div key={i} className="flex flex-col justify-end flex-1">
+                    <div 
+                      className={`w-full transition-all duration-75 ${color}`}
+                      style={{ height: `${height}%` }}
+                    />
+                  </div>
+                )
+              })}
+            </div>
+            <div className="text-xs text-center mt-2 text-slate-500">
+              Frequency Spectrum (20Hz - 20kHz)
+            </div>
+          </div>
+        )}
       </CardContent>
     </Card>
   )

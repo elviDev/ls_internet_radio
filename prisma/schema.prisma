@@ -759,6 +759,51 @@ model ProgramEpisode {
   updatedAt    DateTime @updatedAt
 }
 
+model ChatMessage {
+  id          String   @id @default(cuid())
+  broadcastId String
+  userId      String
+  username    String
+  content     String
+  messageType String   @default("user")
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([broadcastId])
+  @@index([timestamp])
+}
+
+model StreamSession {
+  id          String   @id @default(cuid())
+  broadcastId String
+  streamKey   String   @unique
+  streamUrl   String
+  status      String   @default("STARTING")
+  config      String?  // JSON config
+  startedAt   DateTime @default(now())
+  endedAt     DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([broadcastId])
+  @@index([streamKey])
+}
+
+model ListenerAnalytics {
+  id          String   @id @default(cuid())
+  broadcastId String
+  listenerCount Int
+  peakListeners Int     @default(0)
+  geoData     String?  // JSON geographic data
+  deviceData  String?  // JSON device data
+  timestamp   DateTime @default(now())
+  createdAt   DateTime @default(now())
+
+  @@index([broadcastId])
+  @@index([timestamp])
+}
+
 model DashboardSettings {
   id                        String   @id @default(cuid())
   // General Dashboard Settings
@@ -875,6 +920,7 @@ enum ChapterStatus {
 
 enum BroadcastStatus {
   SCHEDULED
+  READY
   LIVE
   ENDED
 }

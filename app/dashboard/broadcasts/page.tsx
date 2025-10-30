@@ -33,7 +33,7 @@ type Broadcast = {
   title: string
   slug: string
   description: string
-  status: "LIVE" | "SCHEDULED" | "ENDED"
+  status: "LIVE" | "SCHEDULED" | "READY" | "ENDED"
   hostUser?: {
     id: string
     firstName: string
@@ -205,7 +205,7 @@ export default function BroadcastsPage() {
   const [staff, setStaff] = useState<StaffMember[]>([])
   const [assets, setAssets] = useState<Asset[]>([])
   const [programs, setPrograms] = useState<Program[]>([])
-  const [filter, setFilter] = useState<"all" | "LIVE" | "SCHEDULED" | "ENDED">("all")
+  const [filter, setFilter] = useState<"all" | "LIVE" | "SCHEDULED" | "READY" | "ENDED">("all")
   const [programFilter, setProgramFilter] = useState(programIdFromUrl || "all")
   const [searchQuery, setSearchQuery] = useState("")
   
@@ -456,6 +456,13 @@ export default function BroadcastsPage() {
             Scheduled
           </Badge>
         )
+      case "READY":
+        return (
+          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+            <Settings className="h-3 w-3 mr-1" />
+            Ready
+          </Badge>
+        )
       case "ENDED":
         return (
           <Badge variant="outline" className="bg-slate-50 text-slate-700 border-slate-200">
@@ -583,7 +590,7 @@ export default function BroadcastsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ status: 'LIVE' }),
+        body: JSON.stringify({ status: 'READY' }),
       })
       router.push(`/dashboard/broadcasts/${broadcast.slug}/studio`)
     } catch (error) {
@@ -1265,6 +1272,7 @@ export default function BroadcastsPage() {
             <TabsList>
               <TabsTrigger value="all">All</TabsTrigger>
               <TabsTrigger value="LIVE">Live</TabsTrigger>
+              <TabsTrigger value="READY">Ready</TabsTrigger>
               <TabsTrigger value="SCHEDULED">Scheduled</TabsTrigger>
               <TabsTrigger value="ENDED">Ended</TabsTrigger>
             </TabsList>
@@ -1352,11 +1360,11 @@ export default function BroadcastsPage() {
                     </DropdownMenuItem>
                     {broadcast.status === "SCHEDULED" && (
                       <DropdownMenuItem onClick={() => handleGoLive(broadcast)}>
-                        <Play className="h-4 w-4 mr-2" />
-                        Go Live
+                        <Settings className="h-4 w-4 mr-2" />
+                        Prepare Studio
                       </DropdownMenuItem>
                     )}
-                    {broadcast.status === "LIVE" && (
+                    {(broadcast.status === "READY" || broadcast.status === "LIVE") && (
                       <DropdownMenuItem onClick={() => router.push(`/dashboard/broadcasts/${broadcast.slug}/studio`)}>
                         <Play className="h-4 w-4 mr-2" />
                         Enter Studio
@@ -1486,7 +1494,19 @@ export default function BroadcastsPage() {
               {broadcast.status === "SCHEDULED" && (
                 <div className="flex justify-end pt-2 border-t">
                   <Button size="sm" onClick={() => handleGoLive(broadcast)}>
-                    Go Live
+                    <Settings className="h-4 w-4 mr-2" />
+                    Prepare Studio
+                  </Button>
+                </div>
+              )}
+
+              {broadcast.status === "READY" && (
+                <div className="flex items-center justify-between pt-2 border-t">
+                  <div className="text-sm font-semibold text-yellow-600">
+                    🎬 Studio Ready
+                  </div>
+                  <Button size="sm" onClick={() => router.push(`/dashboard/broadcasts/${broadcast.slug}/studio`)}>
+                    Enter Studio
                   </Button>
                 </div>
               )}

@@ -559,11 +559,11 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               <div className="flex-1 relative">
                 <Input
                   ref={chatInputRef}
-                  placeholder={isLive ? "Send a message to listeners..." : "Chat is offline"}
+                  placeholder={isLive ? "Send a message to listeners..." : "Test mode: Send a test message..."}
                   value={newMessage}
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                  disabled={!isLive}
+                  disabled={false} // Always enabled for testing
                   className={selectedMessageType === 'announcement' ? 'border-red-300' : ''}
                 />
                 {selectedMessageType === 'announcement' && (

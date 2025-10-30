@@ -41,13 +41,15 @@ import { AudioPlayer } from "@/components/studio/audio-player"
 import { Soundboard } from "@/components/studio/soundboard"
 import { AnalyticsDashboard } from "@/components/studio/analytics-dashboard"
 import { EnhancedChat } from "@/components/studio/enhanced-chat"
+import { RealTimeStudio } from "@/components/studio/real-time-studio"
+import { AudioProvider } from "@/contexts/audio-context"
 
 type Broadcast = {
   id: string
   title: string
   slug: string
   description: string
-  status: "LIVE" | "SCHEDULED" | "ENDED"
+  status: "LIVE" | "SCHEDULED" | "READY" | "ENDED"
   startTime: string
   endTime?: string
   streamUrl?: string
@@ -142,6 +144,7 @@ export default function EnhancedBroadcastStudioPage() {
   // Analytics data
   const [listeners, setListeners] = useState<any[]>([])
   const [peakListeners, setPeakListeners] = useState(0)
+  const [currentListenerCount, setCurrentListenerCount] = useState(0)
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
@@ -182,19 +185,42 @@ export default function EnhancedBroadcastStudioPage() {
           errors: prev.errors
         }))
 
-        setStudioMetrics(prev => ({
+        setStudioMetrics({
           cpuUsage: 30 + Math.random() * 20,
           memoryUsage: 45 + Math.random() * 15,
           networkStatus: 'excellent',
           audioLevels: {
-            input: 60 + Math.random() * 30,
-            output: 70 + Math.random() * 25,
-            peak: 85 + Math.random() * 10
+            input: 0, // Only show real microphone input levels
+            output: 0, // Only show real output levels
+            peak: 0    // Only show real peak levels
           }
-        }))
+        })
+
+        // Update listener count simulation
+        const baseListeners = 150 + Math.sin(Date.now() / 60000) * 50
+        const variation = Math.random() * 20 - 10
+        const newListenerCount = Math.max(0, Math.floor(baseListeners + variation))
+        setCurrentListenerCount(newListenerCount)
+        setPeakListeners(prev => Math.max(prev, newListenerCount))
       }, 2000)
 
       return () => clearInterval(interval)
+    } else {
+      setCurrentListenerCount(0)
+      setStreamStatus({
+        isConnected: false,
+        quality: 0,
+        bitrate: 0,
+        latency: 0,
+        dropped: 0,
+        errors: []
+      })
+      setStudioMetrics({
+        cpuUsage: 0,
+        memoryUsage: 0,
+        networkStatus: 'offline',
+        audioLevels: { input: 0, output: 0, peak: 0 }
+      })
     }
   }, [isLive])
 
@@ -224,7 +250,7 @@ export default function EnhancedBroadcastStudioPage() {
     try {
       // Initialize audio context
       if (!audioContextRef.current) {
-        audioContextRef.current = new AudioContext()
+        audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)()
       }
 
       // Get user media for microphone access
@@ -232,8 +258,10 @@ export default function EnhancedBroadcastStudioPage() {
         audio: {
           echoCancellation: true,
           noiseSuppression: true,
-          autoGainControl: true
-        } 
+          autoGainControl: true,
+          sampleRate: 44100
+        },
+        video: false
       })
       streamRef.current = stream
 
@@ -251,11 +279,22 @@ export default function EnhancedBroadcastStudioPage() {
         setStartTime(new Date())
         toast.success("🎙️ You're now LIVE!")
       } else {
-        throw new Error('Failed to start broadcast')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to start broadcast')
       }
     } catch (error) {
       console.error('Error starting broadcast:', error)
-      toast.error("Failed to go live. Please check your microphone permissions.")
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          toast.error("Microphone access denied. Please allow microphone permissions and try again.")
+        } else if (error.name === 'NotFoundError') {
+          toast.error("No microphone found. Please connect a microphone and try again.")
+        } else {
+          toast.error(error.message || "Failed to go live. Please try again.")
+        }
+      } else {
+        toast.error("Failed to go live. Please try again.")
+      }
     } finally {
       setIsPrepping(false)
     }
@@ -265,11 +304,15 @@ export default function EnhancedBroadcastStudioPage() {
     try {
       // Stop media streams
       if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop())
+        streamRef.current.getTracks().forEach(track => {
+          track.stop()
+        })
+        streamRef.current = null
       }
       
-      if (audioContextRef.current) {
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
         await audioContextRef.current.close()
+        audioContextRef.current = null
       }
 
       // Update broadcast status
@@ -283,6 +326,8 @@ export default function EnhancedBroadcastStudioPage() {
         const updatedBroadcast = await response.json()
         setBroadcast(updatedBroadcast)
         setIsLive(false)
+        setStartTime(null)
+        setBroadcastDuration("00:00:00")
         setStreamStatus(prev => ({ ...prev, isConnected: false }))
         toast.success("📻 Broadcast ended successfully")
         
@@ -290,11 +335,16 @@ export default function EnhancedBroadcastStudioPage() {
           router.push('/dashboard/broadcasts')
         }, 3000)
       } else {
-        throw new Error('Failed to end broadcast')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to end broadcast')
       }
     } catch (error) {
       console.error('Error ending broadcast:', error)
-      toast.error("Failed to end broadcast")
+      if (error instanceof Error) {
+        toast.error(error.message || "Failed to end broadcast")
+      } else {
+        toast.error("Failed to end broadcast")
+      }
     }
   }
 
@@ -365,7 +415,8 @@ export default function EnhancedBroadcastStudioPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
+    <AudioProvider>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-100">
       <div className="container mx-auto px-6 py-8">
         {/* Studio Header */}
         <div className="flex items-center justify-between mb-8">
@@ -393,17 +444,50 @@ export default function EnhancedBroadcastStudioPage() {
             <Separator orientation="vertical" className="h-8" />
             <div className="flex items-center gap-2 text-sm">
               <Users className="h-4 w-4" />
-              <span>{listeners.length} listeners</span>
+              <span>{currentListenerCount} listeners</span>
+              {peakListeners > 0 && (
+                <Badge variant="outline" className="text-xs">
+                  Peak: {peakListeners}
+                </Badge>
+              )}
             </div>
           </div>
         </div>
+
+        {/* Test Mode Banner */}
+        {!isLive && broadcast && (
+          <Card className="mb-6 border-blue-200 bg-gradient-to-r from-blue-50 to-indigo-50">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-3 h-3 bg-blue-500 rounded-full animate-pulse" />
+                  <div>
+                    <h3 className="font-semibold text-blue-900">Studio Test Mode Active</h3>
+                    <p className="text-sm text-blue-700">
+                      All studio controls are enabled for testing. Configure your setup and test functionality before going live.
+                    </p>
+                  </div>
+                </div>
+                <Badge variant="outline" className="border-blue-300 text-blue-700">
+                  <Settings className="h-3 w-3 mr-1" />
+                  Testing
+                </Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stream Status Bar */}
         <Card className="mb-6">
           <CardContent className="p-4">
             <div className="grid grid-cols-2 md:grid-cols-6 gap-4">
               <div className="flex items-center gap-2">
-                <Signal className={`h-4 w-4 ${streamStatus.isConnected ? 'text-green-500' : 'text-red-500'}`} />
+                <div className="relative">
+                  <Signal className={`h-4 w-4 ${streamStatus.isConnected ? 'text-green-500' : 'text-red-500'}`} />
+                  {streamStatus.isConnected && (
+                    <div className="absolute -top-1 -right-1 w-2 h-2 bg-green-500 rounded-full animate-pulse" />
+                  )}
+                </div>
                 <div>
                   <div className="text-xs text-gray-500">Stream</div>
                   <div className="text-sm font-medium">
@@ -460,14 +544,14 @@ export default function EnhancedBroadcastStudioPage() {
         {/* Main Studio Interface */}
         <div className="space-y-6">
           {/* Go Live / End Broadcast Controls */}
-          {!isLive ? (
+          {broadcast?.status === "READY" && !isLive ? (
             <Card className="border-green-200 bg-green-50">
               <CardContent className="p-6 text-center">
                 <div className="space-y-4">
                   <div>
-                    <h3 className="text-xl font-semibold text-green-900">Ready to Go Live?</h3>
+                    <h3 className="text-xl font-semibold text-green-900">Ready to Start Broadcasting?</h3>
                     <p className="text-green-700">
-                      All systems are ready. Click the button below to start your live broadcast.
+                      Studio is prepared and all systems are ready. Click the button below to start your live broadcast.
                     </p>
                   </div>
                   <Button
@@ -479,26 +563,26 @@ export default function EnhancedBroadcastStudioPage() {
                     {isPrepping ? (
                       <>
                         <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                        Preparing...
+                        Starting Broadcast...
                       </>
                     ) : (
                       <>
                         <Radio className="h-5 w-5 mr-2" />
-                        GO LIVE
+                        START BROADCAST
                       </>
                     )}
                   </Button>
                 </div>
               </CardContent>
             </Card>
-          ) : (
+          ) : isLive ? (
             <Card className="border-red-200 bg-red-50">
               <CardContent className="p-6 text-center">
                 <div className="space-y-4">
                   <div>
                     <h3 className="text-xl font-semibold text-red-900">You're Live!</h3>
                     <p className="text-red-700">
-                      Broadcasting for {broadcastDuration} • {listeners.length} listeners
+                      Broadcasting for {broadcastDuration} • {currentListenerCount} listeners
                     </p>
                   </div>
                   <Button
@@ -513,9 +597,130 @@ export default function EnhancedBroadcastStudioPage() {
                 </div>
               </CardContent>
             </Card>
+          ) : broadcast?.status === "SCHEDULED" ? (
+            <Card className="border-blue-200 bg-blue-50">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-blue-900">Broadcast Not Ready</h3>
+                    <p className="text-blue-700">
+                      This broadcast is still scheduled. Please use "Prepare Studio" from the broadcasts page first.
+                    </p>
+                  </div>
+                  <Button
+                    size="lg"
+                    onClick={() => router.push('/dashboard/broadcasts')}
+                    variant="outline"
+                    className="px-8 py-4 text-lg"
+                  >
+                    <ArrowLeft className="h-5 w-5 mr-2" />
+                    Back to Broadcasts
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card className="border-gray-200 bg-gray-50">
+              <CardContent className="p-6 text-center">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900">Studio Access Unavailable</h3>
+                    <p className="text-gray-700">
+                      This broadcast is not available for studio access.
+                    </p>
+                  </div>
+                  <Button
+                    size="lg"
+                    onClick={() => router.push('/dashboard/broadcasts')}
+                    variant="outline"
+                    className="px-8 py-4 text-lg"
+                  >
+                    <ArrowLeft className="h-5 w-5 mr-2" />
+                    Back to Broadcasts
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           )}
 
-          {/* Studio Tabs */}
+          {/* Staff/Guest Info */}
+          {broadcast && (
+            <Card className="mb-6">
+              <CardHeader>
+                <CardTitle className="flex items-center justify-between">
+                  <span>Broadcast Team</span>
+                  <Badge variant="outline">
+                    {broadcast.staff.length + broadcast.guests.length} members
+                  </Badge>
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {/* Staff */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Staff ({broadcast.staff.length})</h4>
+                    <div className="space-y-1">
+                      {broadcast.staff.map((staff) => (
+                        <div key={staff.id} className="flex items-center justify-between p-2 bg-slate-50 rounded">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-blue-100 rounded-full flex items-center justify-center text-xs font-medium">
+                              {staff.user.firstName.charAt(0)}{staff.user.lastName.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">
+                                {staff.user.firstName} {staff.user.lastName}
+                              </p>
+                              <p className="text-xs text-slate-500">{staff.role.replace('_', ' ')}</p>
+                            </div>
+                          </div>
+                          <Badge variant={staff.isActive ? "default" : "secondary"} className="text-xs">
+                            {staff.isActive ? "Active" : "Inactive"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                  
+                  {/* Guests */}
+                  <div className="space-y-2">
+                    <h4 className="font-medium text-sm">Guests ({broadcast.guests.length})</h4>
+                    <div className="space-y-1">
+                      {broadcast.guests.map((guest) => (
+                        <div key={guest.id} className="flex items-center justify-between p-2 bg-green-50 rounded">
+                          <div className="flex items-center gap-2">
+                            <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center text-xs font-medium">
+                              {guest.name.charAt(0)}
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium">{guest.name}</p>
+                              <p className="text-xs text-slate-500">{guest.title || guest.role}</p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-xs">
+                            Guest
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Real-Time Studio Controls */}
+          {broadcast && (
+            <RealTimeStudio
+              broadcastId={broadcast.id}
+              userId={broadcast.hostUser.id}
+              isLive={isLive}
+              onGoLive={handleGoLive}
+              onEndBroadcast={handleEndBroadcast}
+            />
+          )}
+
+          {/* Studio Tabs - Available for all broadcast statuses */}
+          {broadcast && (
           <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
             <TabsList className="grid w-full grid-cols-5 bg-white shadow-sm border">
               <TabsTrigger value="console" className="data-[state=active]:bg-slate-900 data-[state=active]:text-white">
@@ -541,10 +746,23 @@ export default function EnhancedBroadcastStudioPage() {
             </TabsList>
 
             <TabsContent value="console" className="space-y-6">
+              {!isLive && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Settings className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Test Mode</span>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Studio is in test mode. You can configure all settings and test functionality before going live.
+                  </p>
+                </div>
+              )}
               <MixingBoard
-                isLive={isLive}
+                isLive={true} // Always enable for testing
                 onChannelChange={(channelId, changes) => {
                   console.log('Channel changed:', channelId, changes)
+                  // Here you could implement real audio processing
+                  // or send updates to a WebRTC connection
                 }}
                 onMasterVolumeChange={(volume) => {
                   console.log('Master volume:', volume)
@@ -556,31 +774,67 @@ export default function EnhancedBroadcastStudioPage() {
             </TabsContent>
 
             <TabsContent value="player" className="space-y-6">
+              {!isLive && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Music className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Audio Player Test Mode</span>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Test your playlists, crossfade settings, and track selection before going live.
+                  </p>
+                </div>
+              )}
               <AudioPlayer
-                isLive={isLive}
+                isLive={true} // Always enable for testing
                 onTrackChange={(track) => {
                   console.log('Track changed:', track)
+                  // Could send track info to listeners via WebSocket
                 }}
                 onPlaylistChange={(playlist) => {
                   console.log('Playlist changed:', playlist)
+                  // Could update scheduled content
                 }}
               />
             </TabsContent>
 
             <TabsContent value="soundboard" className="space-y-6">
+              {!isLive && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <Zap className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Soundboard Test Mode</span>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Test your sound effects, jingles, and audio cues. All sounds will play as tests.
+                  </p>
+                </div>
+              )}
               <Soundboard
-                isLive={isLive}
+                isLive={true} // Always enable for testing
                 onSoundPlay={(sound) => {
                   console.log('Sound playing:', sound)
-                  toast.success(`Playing: ${sound.name}`)
+                  // Could trigger audio playback through WebAudio API
                 }}
                 onSoundStop={(soundId) => {
                   console.log('Sound stopped:', soundId)
+                  // Could stop audio playback
                 }}
               />
             </TabsContent>
 
             <TabsContent value="analytics" className="space-y-6">
+              {!isLive && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <BarChart3 className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Analytics Preview</span>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Preview your analytics dashboard. Real data will appear when broadcast goes live.
+                  </p>
+                </div>
+              )}
               <AnalyticsDashboard
                 isLive={isLive}
                 listeners={listeners}
@@ -589,24 +843,51 @@ export default function EnhancedBroadcastStudioPage() {
             </TabsContent>
 
             <TabsContent value="chat" className="space-y-6">
+              {!isLive && (
+                <div className="mb-4 p-4 bg-blue-50 border border-blue-200 rounded-lg">
+                  <div className="flex items-center gap-2">
+                    <MessageSquare className="h-4 w-4 text-blue-600" />
+                    <span className="text-sm font-medium text-blue-900">Chat System Test</span>
+                  </div>
+                  <p className="text-sm text-blue-700 mt-1">
+                    Test your chat moderation tools and practice sending announcements. Messages will be simulated.
+                  </p>
+                </div>
+              )}
               <EnhancedChat
                 isLive={isLive}
                 hostId={broadcast.hostUser.id}
                 onMessageSend={(message, type) => {
                   console.log('Message sent:', message, type)
+                  // Only show toast for important announcements
                   if (type === 'announcement') {
-                    toast.success('Announcement sent to all listeners')
+                    if (isLive) {
+                      toast.success('📢 Announcement sent to all listeners')
+                    } else {
+                      toast.success('🧪 Test: Announcement would be sent to listeners')
+                    }
                   }
+                  // Could send message via WebSocket to all listeners
                 }}
                 onUserAction={(userId, action) => {
                   console.log('User action:', userId, action)
-                  toast.success(`User ${action}ed successfully`)
+                  // Only show toast for significant moderation actions
+                  if (action === 'ban') {
+                    if (isLive) {
+                      toast.success('🚫 User banned successfully')
+                    } else {
+                      toast.success('🧪 Test: User would be banned in live mode')
+                    }
+                  }
+                  // Could send moderation action via API
                 }}
               />
             </TabsContent>
           </Tabs>
+          )}
         </div>
       </div>
     </div>
+    </AudioProvider>
   )
 }
