@@ -3,6 +3,14 @@ import { prisma } from "@/lib/prisma"
 import { adminOnly } from "@/lib/auth/adminOnly"
 import { getCurrentUser } from "@/lib/auth/getCurrentUser"
 
+function generateSlug(title: string): string {
+  return title
+    .toLowerCase()
+    .replace(/[^\w ]+/g, '')
+    .replace(/ +/g, '-')
+    .substring(0, 50) + '-' + Date.now().toString(36);
+}
+
 // GET /api/admin/schedules - Get all schedules with filters
 export const GET = adminOnly(async (req: Request) => {
   try {
@@ -199,6 +207,29 @@ export const POST = adminOnly(async (req: Request) => {
           scheduleId: schedule.id,
           ...advertisementData
         }
+      })
+    }
+
+    // Create LiveBroadcast for LIVE_BROADCAST type schedules
+    if (type === "LIVE_BROADCAST") {
+      const broadcast = await prisma.liveBroadcast.create({
+        data: {
+          title,
+          description: description || "",
+          slug: generateSlug(title),
+          hostId: assignedTo || user.id, // Use assigned staff member or creator as host
+          startTime: new Date(startTime),
+          endTime: endTime ? new Date(endTime) : null,
+          status: "SCHEDULED",
+          // TODO: Get program from form data if provided
+          programId: body.programId || null,
+        }
+      })
+
+      // Link the broadcast to the schedule
+      await prisma.schedule.update({
+        where: { id: schedule.id },
+        data: { liveBroadcastId: broadcast.id }
       })
     }
 

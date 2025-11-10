@@ -43,6 +43,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Clock,
+  CheckCircle,
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/auth-context";
@@ -60,6 +61,8 @@ interface StaffMember {
   phone?: string;
   profileImage?: string;
   isActive: boolean;
+  isApproved: boolean;
+  approvedAt?: string;
   startDate?: string;
   endDate?: string;
   contentCount: number;
@@ -231,6 +234,48 @@ export default function StaffPage() {
       toast({
         title: "Error",
         description: "Failed to delete staff member",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleApproveStaff = async (staffId: string) => {
+    try {
+      const response = await fetch(`/api/admin/staff/${staffId}/approve`, {
+        method: "POST",
+      });
+
+      if (response.ok) {
+        toast({
+          title: "Success",
+          description: "Staff member approved successfully",
+        });
+        fetchStaff(); // Refresh the staff list
+        fetchPendingCount(); // Update pending count
+      } else {
+        const data = await response.json();
+        
+        // Handle specific case where staff is already approved
+        if (response.status === 400 && data.error?.includes("already approved")) {
+          toast({
+            title: "Already Approved",
+            description: "This staff member is already approved",
+            variant: "default",
+          });
+          // Refresh the list to update the UI
+          fetchStaff();
+        } else {
+          toast({
+            title: "Error",
+            description: data.error || "Failed to approve staff member",
+            variant: "destructive",
+          });
+        }
+      }
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to approve staff member",
         variant: "destructive",
       });
     }
@@ -430,6 +475,7 @@ export default function StaffPage() {
                 <TableHead>Role</TableHead>
                 <TableHead>Department</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Approval</TableHead>
                 <TableHead>Content</TableHead>
                 <TableHead>Joined</TableHead>
                 <TableHead className="w-12"></TableHead>
@@ -474,6 +520,18 @@ export default function StaffPage() {
                       }
                     >
                       {member.isActive ? "Active" : "Inactive"}
+                    </Badge>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={member.isApproved ? "default" : "outline"}
+                      className={
+                        member.isApproved
+                          ? "bg-blue-100 text-blue-800"
+                          : "bg-orange-100 text-orange-800 border-orange-300"
+                      }
+                    >
+                      {member.isApproved ? "Approved" : "Pending"}
                     </Badge>
                   </TableCell>
                   <TableCell>
@@ -523,6 +581,18 @@ export default function StaffPage() {
                             </>
                           )}
                         </DropdownMenuItem>
+                        {isAdmin && !member.isApproved && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem
+                              onClick={() => handleApproveStaff(member.id)}
+                              className="text-green-600 focus:text-green-600"
+                            >
+                              <CheckCircle className="h-4 w-4 mr-2" />
+                              Approve Staff
+                            </DropdownMenuItem>
+                          </>
+                        )}
                         {isAdmin && (
                           <>
                             <DropdownMenuSeparator />

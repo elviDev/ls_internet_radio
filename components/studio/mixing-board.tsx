@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { ChannelAudioMonitor } from "./channel-audio-monitor"
 import { useAudioProcessor } from "@/hooks/use-audio-processor"
 import { useAudio } from "@/contexts/audio-context"
+import { useWebRTCBroadcast } from "@/hooks/use-webrtc-broadcast"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -61,13 +62,15 @@ interface MixingBoardProps {
   onChannelChange: (channelId: string, changes: Partial<AudioChannel>) => void
   onMasterVolumeChange: (volume: number) => void
   onCueChannel: (channelId: string) => void
+  broadcastId: string
 }
 
 export function MixingBoard({ 
   isLive, 
   onChannelChange, 
   onMasterVolumeChange,
-  onCueChannel 
+  onCueChannel,
+  broadcastId
 }: MixingBoardProps) {
   const [headphoneVolume, setHeadphoneVolume] = useState(60)
   const [recordingEnabled, setRecordingEnabled] = useState(false)
@@ -75,6 +78,16 @@ export function MixingBoard({
   const [showAnalyzer, setShowAnalyzer] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(false)
   const [analyzerData, setAnalyzerData] = useState<Uint8Array>(new Uint8Array(0))
+  
+  // WebRTC broadcast hook
+  const {
+    isConnected: webrtcConnected,
+    isBroadcasting: broadcastingEnabled,
+    listenerCount,
+    error: broadcastError,
+    startBroadcast,
+    stopBroadcast
+  } = useWebRTCBroadcast(broadcastId)
   
   // Global audio context for music control
   const { 
@@ -238,6 +251,22 @@ export function MixingBoard({
     setAudioEnabled(success)
   }
 
+  // Start/stop broadcasting
+  const toggleBroadcast = async () => {
+    if (!audioEnabled) return
+    
+    if (broadcastingEnabled) {
+      // Stop WebRTC broadcasting
+      stopBroadcast()
+    } else {
+      // Start WebRTC broadcasting with processed audio stream
+      const broadcastStream = audioProcessor.getBroadcastStream()
+      if (broadcastStream) {
+        await startBroadcast(broadcastStream)
+      }
+    }
+  }
+
   const updateChannel = (channelId: string, changes: Partial<AudioChannel>) => {
     setChannels(prev => prev.map(ch => 
       ch.id === channelId ? { ...ch, ...changes } : ch
@@ -309,6 +338,12 @@ export function MixingBoard({
               <Badge variant="destructive" className="animate-pulse">
                 <div className="w-2 h-2 bg-white rounded-full mr-1" />
                 REC
+              </Badge>
+            )}
+            {broadcastingEnabled && (
+              <Badge variant="default" className="animate-pulse bg-red-600">
+                <Radio className="w-3 h-3 mr-1" />
+                LIVE
               </Badge>
             )}
           </div>
@@ -543,6 +578,30 @@ export function MixingBoard({
                   {recordingEnabled ? 'Stop Recording' : 'Start Recording'}
                 </div>
               </Button>
+              
+              <Button 
+                variant={broadcastingEnabled ? "destructive" : "default"} 
+                className="w-full h-10"
+                onClick={toggleBroadcast}
+                disabled={!audioEnabled || !webrtcConnected}
+              >
+                <div className="flex items-center gap-2">
+                  <Radio className="h-4 w-4" />
+                  {broadcastingEnabled ? 'Stop Live Stream' : 'Go Live'}
+                </div>
+              </Button>
+              
+              {broadcastError && (
+                <div className="text-xs text-red-600 text-center">
+                  {broadcastError}
+                </div>
+              )}
+              
+              {listenerCount > 0 && (
+                <div className="text-xs text-center text-gray-600">
+                  {listenerCount} listeners
+                </div>
+              )}
               
               <Button 
                 variant={showAdvanced ? "default" : "outline"} 

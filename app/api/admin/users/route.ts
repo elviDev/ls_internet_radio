@@ -39,15 +39,15 @@ export async function GET(req: Request) {
       ];
     }
     
-    if (isActive !== null && isActive !== undefined) {
+    if (isActive !== null && isActive !== undefined && isActive !== "all") {
       where.isActive = isActive === "true";
     }
     
-    if (isSuspended !== null && isSuspended !== undefined) {
+    if (isSuspended !== null && isSuspended !== undefined && isSuspended !== "all") {
       where.isSuspended = isSuspended === "true";
     }
     
-    if (emailVerified !== null && emailVerified !== undefined) {
+    if (emailVerified !== null && emailVerified !== undefined && emailVerified !== "all") {
       where.emailVerified = emailVerified === "true";
     }
 

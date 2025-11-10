@@ -1,53 +1,67 @@
 import { useEffect, useRef, useState } from 'react'
-import { AudioStreamManager } from '@/lib/audio-stream'
+import { UnifiedAudioSystem, AudioMetrics } from '@/lib/unified-audio-system'
 
-export function useAudioStream() {
+export function useAudioStream(broadcastId?: string) {
   const [isInitialized, setIsInitialized] = useState(false)
   const [isRecording, setIsRecording] = useState(false)
   const [audioLevels, setAudioLevels] = useState({ input: 0, output: 0, peak: 0 })
   const [error, setError] = useState<string | null>(null)
   
-  const streamManagerRef = useRef<AudioStreamManager | null>(null)
+  const audioSystemRef = useRef<UnifiedAudioSystem | null>(null)
 
   useEffect(() => {
-    streamManagerRef.current = new AudioStreamManager()
+    if (!broadcastId) return
+
+    audioSystemRef.current = new UnifiedAudioSystem({
+      broadcastId,
+      sampleRate: 48000,
+      channels: 2,
+      bitrate: 128000,
+      maxSources: 8
+    })
     
     return () => {
-      if (streamManagerRef.current) {
-        streamManagerRef.current.cleanup()
+      if (audioSystemRef.current) {
+        audioSystemRef.current.cleanup()
       }
     }
-  }, [])
+  }, [broadcastId])
+
+  // Audio level monitoring
+  useEffect(() => {
+    if (!audioSystemRef.current) return
+
+    audioSystemRef.current.onMetricsUpdate = (metrics: AudioMetrics) => {
+      setAudioLevels({
+        input: metrics.inputLevel,
+        output: metrics.outputLevel,
+        peak: metrics.peakLevel
+      })
+    }
+  }, [isInitialized])
 
   const initializeAudio = async () => {
-    if (!streamManagerRef.current) return
+    if (!audioSystemRef.current) return
 
     try {
-      await streamManagerRef.current.initialize()
+      await audioSystemRef.current.initialize()
       setIsInitialized(true)
       setError(null)
-
-      // Set up audio level monitoring
-      const updateLevels = () => {
-        if (streamManagerRef.current) {
-          const levels = streamManagerRef.current.getAudioLevels()
-          setAudioLevels(levels)
-        }
-      }
-
-      const interval = setInterval(updateLevels, 100)
-      return () => clearInterval(interval)
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to initialize audio')
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        setError('Microphone permission denied. Please allow microphone access to broadcast.')
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to initialize audio')
+      }
       setIsInitialized(false)
     }
   }
 
   const startRecording = async () => {
-    if (!streamManagerRef.current || !isInitialized) return
+    if (!audioSystemRef.current || !isInitialized) return
 
     try {
-      await streamManagerRef.current.startRecording()
+      await audioSystemRef.current.startBroadcast()
       setIsRecording(true)
       setError(null)
     } catch (err) {
@@ -56,15 +70,9 @@ export function useAudioStream() {
   }
 
   const stopRecording = () => {
-    if (streamManagerRef.current) {
-      streamManagerRef.current.stopRecording()
+    if (audioSystemRef.current) {
+      audioSystemRef.current.stopBroadcast()
       setIsRecording(false)
-    }
-  }
-
-  const applyEffect = (type: 'reverb' | 'echo' | 'compressor', intensity: number) => {
-    if (streamManagerRef.current) {
-      streamManagerRef.current.applyEffect(type, intensity)
     }
   }
 
@@ -76,6 +84,6 @@ export function useAudioStream() {
     initializeAudio,
     startRecording,
     stopRecording,
-    applyEffect
+    audioSystem: audioSystemRef.current
   }
 }

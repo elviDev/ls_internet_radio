@@ -27,6 +27,14 @@ const registerSchema = z.object({
 }).refine((data) => data.password === data.confirmPassword, {
   message: "Passwords don't match",
   path: ["confirmPassword"],
+}).refine((data) => {
+  if (data.userType === "staff" && (!data.role || data.role === "")) {
+    return false;
+  }
+  return true;
+}, {
+  message: "Role is required for staff registration",
+  path: ["role"],
 })
 
 type RegisterFormData = z.infer<typeof registerSchema>
@@ -58,10 +66,38 @@ export default function RegisterPage() {
   const onSubmit = async (data: RegisterFormData) => {
     setIsLoading(true)
     try {
-      const response = await fetch('/api/auth/register', {
+      let endpoint = '/api/auth/register'
+      let requestBody: any = {
+        firstName: data.firstName,
+        lastName: data.lastName,
+        username: data.username,
+        email: data.email,
+        password: data.password,
+        confirmPassword: data.confirmPassword,
+        phone: data.phone
+      }
+
+      // Route to correct endpoint based on user type
+      if (data.userType === 'staff') {
+        endpoint = '/api/auth/register-staff'
+        requestBody = {
+          firstName: data.firstName,
+          lastName: data.lastName,
+          username: data.username,
+          email: data.email,
+          password: data.password,
+          requestedRole: data.role,
+          phone: data.phone
+        }
+      } else {
+        // For regular users, use name instead of firstName/lastName
+        requestBody.name = `${data.firstName} ${data.lastName}`
+      }
+
+      const response = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(requestBody)
       })
 
       const result = await response.json()

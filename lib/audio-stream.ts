@@ -1,83 +1,62 @@
-// Audio streaming utilities for real broadcasting
+// DEPRECATED: Use UnifiedAudioSystem instead
+// This file is kept for backward compatibility
+
+import { UnifiedAudioSystem, createAudioSystem } from './unified-audio-system'
+
+// Legacy AudioStreamManager - redirects to UnifiedAudioSystem
 export class AudioStreamManager {
-  private audioContext: AudioContext | null = null
-  private mediaStream: MediaStream | null = null
-  private mediaRecorder: MediaRecorder | null = null
-  private audioWorkletNode: AudioWorkletNode | null = null
+  private unifiedSystem: UnifiedAudioSystem | null = null
   private isRecording = false
   private listeners: ((data: Float32Array) => void)[] = []
 
   async initialize(): Promise<void> {
+    console.warn('⚠️ AudioStreamManager is deprecated. Use UnifiedAudioSystem instead.')
+    
     try {
-      // Initialize audio context only after user gesture
-      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+      // Create unified audio system
+      this.unifiedSystem = createAudioSystem('legacy-broadcast')
+      await this.unifiedSystem.initialize()
       
-      // Resume context if suspended (required for user gesture)
-      if (this.audioContext.state === 'suspended') {
-        console.log('AudioContext suspended, waiting for user gesture...')
-        // Don't throw error, just log and continue
-        return
-      }
-      
-      if (this.audioContext.state !== 'running') {
-        await this.audioContext.resume()
-      }
-
-      // Get user media
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100,
-          channelCount: 2
-        }
-      })
-
-      console.log('Audio stream initialized successfully')
+      console.log('✅ Legacy audio stream initialized via UnifiedAudioSystem')
     } catch (error) {
-      console.error('Failed to initialize audio stream:', error)
+      console.error('Failed to initialize legacy audio stream:', error)
       throw error
     }
   }
 
   async startRecording(): Promise<void> {
-    if (!this.mediaStream || !this.audioContext) {
-      throw new Error('Audio stream not initialized')
+    if (!this.unifiedSystem) {
+      throw new Error('Audio system not initialized')
     }
 
     try {
-      // Create media recorder for streaming
-      this.mediaRecorder = new MediaRecorder(this.mediaStream, {
-        mimeType: 'audio/webm;codecs=opus'
+      // Add a default host source
+      await this.unifiedSystem.addAudioSource({
+        id: 'legacy-host',
+        type: 'host',
+        name: 'Legacy Host',
+        volume: 1.0,
+        isMuted: false,
+        isActive: true,
+        priority: 10
       })
 
-      // Set up audio processing
-      const source = this.audioContext.createMediaStreamSource(this.mediaStream)
-      const analyser = this.audioContext.createAnalyser()
-      analyser.fftSize = 2048
-
-      source.connect(analyser)
-
-      // Start recording
-      this.mediaRecorder.start(100) // 100ms chunks
+      // Start broadcast
+      await this.unifiedSystem.startBroadcast()
       this.isRecording = true
 
-      // Process audio data
-      this.processAudioData(analyser)
-
-      console.log('Recording started')
+      console.log('✅ Legacy recording started via UnifiedAudioSystem')
     } catch (error) {
-      console.error('Failed to start recording:', error)
+      console.error('Failed to start legacy recording:', error)
       throw error
     }
   }
 
   stopRecording(): void {
-    if (this.mediaRecorder && this.isRecording) {
-      this.mediaRecorder.stop()
+    if (this.unifiedSystem && this.isRecording) {
+      this.unifiedSystem.stopBroadcast()
       this.isRecording = false
-      console.log('Recording stopped')
+      console.log('✅ Legacy recording stopped')
     }
   }
 
@@ -114,20 +93,15 @@ export class AudioStreamManager {
 
   // Get audio levels for UI
   getAudioLevels(): { input: number; output: number; peak: number } {
-    if (!this.audioContext || !this.mediaStream) {
+    if (!this.unifiedSystem) {
       return { input: 0, output: 0, peak: 0 }
     }
 
-    // Simulate audio levels based on stream activity
-    const active = this.mediaStream.getAudioTracks().some(track => track.enabled)
-    if (!active) {
-      return { input: 0, output: 0, peak: 0 }
-    }
-
+    const metrics = this.unifiedSystem.getMetrics()
     return {
-      input: 60 + Math.random() * 30,
-      output: 70 + Math.random() * 25,
-      peak: 85 + Math.random() * 10
+      input: metrics.inputLevel,
+      output: metrics.outputLevel,
+      peak: metrics.peakLevel
     }
   }
 
@@ -143,14 +117,9 @@ export class AudioStreamManager {
   cleanup(): void {
     this.stopRecording()
     
-    if (this.mediaStream) {
-      this.mediaStream.getTracks().forEach(track => track.stop())
-      this.mediaStream = null
-    }
-
-    if (this.audioContext && this.audioContext.state !== 'closed') {
-      this.audioContext.close()
-      this.audioContext = null
+    if (this.unifiedSystem) {
+      this.unifiedSystem.cleanup()
+      this.unifiedSystem = null
     }
 
     this.listeners = []

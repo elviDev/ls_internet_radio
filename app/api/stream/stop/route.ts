@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
     const { broadcastId } = await request.json()
 
     // Validate broadcast exists and user has permission
-    const broadcast = await prisma.broadcast.findUnique({
+    const broadcast = await prisma.liveBroadcast.findUnique({
       where: { id: broadcastId },
       include: { hostUser: true }
     })
@@ -26,11 +26,11 @@ export async function POST(request: NextRequest) {
     }
 
     // Update broadcast status
-    await prisma.broadcast.update({
+    await prisma.liveBroadcast.update({
       where: { id: broadcastId },
       data: { 
         status: 'ENDED',
-        actualEndTime: new Date()
+        endTime: new Date()
       }
     })
 

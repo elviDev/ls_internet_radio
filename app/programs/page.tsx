@@ -91,7 +91,7 @@ export default function ProgramsPage() {
       if (!response.ok) throw new Error('Failed to fetch programs')
       
       const data = await response.json()
-      setPrograms(data)
+      setPrograms(data.programs || [])
       setError(null)
     } catch (error) {
       console.error('Error fetching programs:', error)
@@ -203,7 +203,7 @@ export default function ProgramsPage() {
                         </h3>
                         <div className="flex items-center mb-3 text-sm text-muted-foreground">
                           <User className="h-3 w-3 mr-1" />
-                          <span>{program.host}</span>
+                          <span>{program.host?.name || 'No host assigned'}</span>
                         </div>
                         <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
                           {program.description}

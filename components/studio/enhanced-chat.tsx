@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect, useRef } from "react"
+import { useChat } from "@/contexts/chat-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +11,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { Switch } from "@/components/ui/switch"
+import { Separator } from "@/components/ui/separator"
+import { toast } from "sonner"
 import {
   MessageSquare,
   Send,
@@ -38,50 +42,30 @@ import {
   Clock
 } from "lucide-react"
 
-interface ChatMessage {
-  id: string
-  userId: string
-  username: string
-  userAvatar?: string
-  content: string
-  timestamp: Date
-  type: 'user' | 'host' | 'moderator' | 'system' | 'announcement'
-  likes: number
-  dislikes: number
-  isLiked: boolean
-  isDisliked: boolean
-  isPinned: boolean
-  isHighlighted: boolean
-  replyTo?: string
-  emojis: { [emoji: string]: number }
-  isModerated: boolean
-  moderationReason?: string
-}
-
-interface ChatUser {
-  id: string
-  username: string
-  avatar?: string
-  role: 'listener' | 'host' | 'moderator' | 'admin'
-  isMuted: boolean
-  isBanned: boolean
-  joinedAt: Date
-  messageCount: number
-  violations: number
-}
 
 interface EnhancedChatProps {
   isLive: boolean
   hostId: string
+  broadcastId: string
   onMessageSend: (message: string, type?: string) => void
   onUserAction: (userId: string, action: string) => void
 }
 
-export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: EnhancedChatProps) {
-  const [messages, setMessages] = useState<ChatMessage[]>([])
+export function EnhancedChat({ isLive, hostId, broadcastId, onMessageSend, onUserAction }: EnhancedChatProps) {
+  const {
+    state,
+    sendMessage,
+    sendTyping,
+    joinBroadcast,
+    leaveBroadcast,
+    moderateMessage,
+    moderateUser,
+    likeMessage,
+    updateSettings
+  } = useChat()
+
   const [newMessage, setNewMessage] = useState("")
   const [selectedMessageType, setSelectedMessageType] = useState("user")
-  const [chatUsers, setChatUsers] = useState<ChatUser[]>([])
   const [showModerationPanel, setShowModerationPanel] = useState(false)
   const [chatFilters, setChatFilters] = useState({
     showAll: true,
@@ -91,206 +75,133 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
     hideSpam: true
   })
   const [searchTerm, setSearchTerm] = useState("")
-  const [autoModeration, setAutoModeration] = useState(true)
-  const [slowMode, setSlowMode] = useState(0) // seconds
-  const [pinnedMessage, setPinnedMessage] = useState<ChatMessage | null>(null)
+  const [selectedUserId, setSelectedUserId] = useState<string | null>(null)
+  const [showUserActions, setShowUserActions] = useState(false)
+  const [isTyping, setIsTyping] = useState(false)
+  const [slowMode, setSlowMode] = useState(0)
+  const [autoModeration, setAutoModeration] = useState(false)
+  const [isConnected, setIsConnected] = useState(false)
+  const [chatUsers, setChatUsers] = useState<any[]>([])
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const chatInputRef = useRef<HTMLInputElement>(null)
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null)
 
-  // Initialize with some sample data
+  // Join broadcast when component mounts
   useEffect(() => {
-    const initialMessages: ChatMessage[] = [
-      {
-        id: '1',
-        userId: 'system',
-        username: 'System',
-        content: '🎵 Welcome to the live broadcast! Chat is now active.',
-        timestamp: new Date(Date.now() - 300000),
-        type: 'system',
-        likes: 0,
-        dislikes: 0,
-        isLiked: false,
-        isDisliked: false,
-        isPinned: false,
-        isHighlighted: false,
-        emojis: {},
-        isModerated: false
-      },
-      {
-        id: '2',
-        userId: hostId,
-        username: 'Radio Host',
-        content: 'Good evening everyone! Thanks for tuning in tonight. We have an amazing show lined up for you!',
-        timestamp: new Date(Date.now() - 240000),
-        type: 'host',
-        likes: 15,
-        dislikes: 0,
-        isLiked: false,
-        isDisliked: false,
-        isPinned: true,
-        isHighlighted: true,
-        emojis: { '🎵': 3, '👏': 8, '❤️': 5 },
-        isModerated: false
-      }
-    ]
-    setMessages(initialMessages)
-    setPinnedMessage(initialMessages[1])
-
-    const initialUsers: ChatUser[] = [
-      {
+    if (broadcastId && hostId && !state.currentBroadcast) {
+      joinBroadcast(broadcastId, {
         id: hostId,
         username: 'Radio Host',
         role: 'host',
-        isMuted: false,
-        isBanned: false,
-        joinedAt: new Date(Date.now() - 300000),
-        messageCount: 1,
-        violations: 0
+        isOnline: true,
+        isTyping: false,
+        lastSeen: new Date(),
+        messageCount: 0
+      })
+    }
+
+    return () => {
+      if (state.currentBroadcast) {
+        leaveBroadcast()
       }
-    ]
-    setChatUsers(initialUsers)
-  }, [hostId])
+    }
+  }, [broadcastId, hostId])
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [state.messages])
 
-  // Simulate real-time messages
+  // Update chat settings when studio settings change
   useEffect(() => {
-    if (!isLive) return
-
-    const interval = setInterval(() => {
-      if (Math.random() > 0.6) {
-        const userMessages = [
-          "Great music selection! 🎵",
-          "Love this show! ❤️",
-          "Can you play some jazz next?",
-          "Hello from New York! 🗽",
-          "This is my favorite radio station",
-          "Amazing broadcast as always",
-          "Perfect music for the evening 🌅",
-          "Thanks for keeping us entertained! 🙏",
-          "What's the name of this song?",
-          "Greetings from London! 🇬🇧"
-        ]
-
-        const randomMessage = userMessages[Math.floor(Math.random() * userMessages.length)]
-        const randomUser = `Listener${Math.floor(Math.random() * 1000)}`
-        const userId = `user_${Date.now()}`
-
-        const newMessage: ChatMessage = {
-          id: Date.now().toString(),
-          userId,
-          username: randomUser,
-          content: randomMessage,
-          timestamp: new Date(),
-          type: 'user',
-          likes: Math.floor(Math.random() * 5),
-          dislikes: 0,
-          isLiked: false,
-          isDisliked: false,
-          isPinned: false,
-          isHighlighted: false,
-          emojis: {},
-          isModerated: false
-        }
-
-        setMessages(prev => [...prev.slice(-99), newMessage])
-
-        // Add user if not exists
-        setChatUsers(prev => {
-          if (prev.some(u => u.id === userId)) return prev
-          return [...prev, {
-            id: userId,
-            username: randomUser,
-            role: 'listener',
-            isMuted: false,
-            isBanned: false,
-            joinedAt: new Date(),
-            messageCount: 1,
-            violations: 0
-          }]
-        })
-      }
-    }, 8000)
-
-    return () => clearInterval(interval)
-  }, [isLive])
+    updateSettings({
+      slowMode: state.chatSettings.slowMode,
+      autoModeration: state.chatSettings.autoModeration,
+      allowEmojis: state.chatSettings.allowEmojis,
+      maxMessageLength: state.chatSettings.maxMessageLength
+    })
+  }, [])
 
   const handleSendMessage = () => {
-    if (!newMessage.trim() || !isLive) return
+    if (!newMessage.trim() || !state.isConnected) return
 
-    const message: ChatMessage = {
-      id: Date.now().toString(),
-      userId: hostId,
-      username: 'Radio Host',
-      content: newMessage.trim(),
-      timestamp: new Date(),
-      type: selectedMessageType as any,
-      likes: 0,
-      dislikes: 0,
-      isLiked: false,
-      isDisliked: false,
-      isPinned: false,
-      isHighlighted: selectedMessageType === 'announcement',
-      emojis: {},
-      isModerated: false
-    }
-
-    setMessages(prev => [...prev, message])
+    sendMessage(newMessage.trim(), selectedMessageType)
     onMessageSend(newMessage.trim(), selectedMessageType)
+    
     setNewMessage("")
+    setIsTyping(false)
+    sendTyping(false)
     chatInputRef.current?.focus()
   }
 
-  const handleMessageAction = (messageId: string, action: 'like' | 'dislike' | 'pin' | 'delete' | 'moderate') => {
-    setMessages(prev => prev.map(msg => {
-      if (msg.id === messageId) {
-        switch (action) {
-          case 'like':
-            return {
-              ...msg,
-              likes: msg.isLiked ? msg.likes - 1 : msg.likes + 1,
-              isLiked: !msg.isLiked,
-              isDisliked: false
-            }
-          case 'dislike':
-            return {
-              ...msg,
-              dislikes: msg.isDisliked ? msg.dislikes - 1 : msg.dislikes + 1,
-              isDisliked: !msg.isDisliked,
-              isLiked: false
-            }
-          case 'pin':
-            setPinnedMessage(msg.isPinned ? null : msg)
-            return { ...msg, isPinned: !msg.isPinned }
-          case 'moderate':
-            return { ...msg, isModerated: true, moderationReason: 'Inappropriate content' }
-          default:
-            return msg
-        }
-      }
-      return msg
-    }))
+  const handleInputChange = (value: string) => {
+    setNewMessage(value)
+    
+    // Handle typing indicators
+    if (value.length > 0 && !isTyping) {
+      setIsTyping(true)
+      sendTyping(true)
+    } else if (value.length === 0 && isTyping) {
+      setIsTyping(false)
+      sendTyping(false)
+    }
+
+    // Clear typing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current)
+    }
+
+    // Auto-stop typing after 3 seconds of inactivity
+    if (value.length > 0) {
+      typingTimeoutRef.current = setTimeout(() => {
+        setIsTyping(false)
+        sendTyping(false)
+      }, 3000)
+    }
   }
 
-  const handleUserAction = (userId: string, action: 'mute' | 'ban' | 'timeout') => {
-    setChatUsers(prev => prev.map(user => {
-      if (user.id === userId) {
-        switch (action) {
-          case 'mute':
-            return { ...user, isMuted: !user.isMuted }
-          case 'ban':
-            return { ...user, isBanned: true }
-          default:
-            return user
-        }
-      }
-      return user
-    }))
+  const handleMessageAction = (messageId: string, action: 'like' | 'dislike' | 'pin' | 'delete' | 'highlight') => {
+    switch (action) {
+      case 'like':
+        likeMessage(messageId)
+        break
+      case 'pin':
+      case 'delete':
+      case 'highlight':
+        moderateMessage(messageId, action)
+        break
+    }
+  }
+
+  const handleUserAction = (userId: string, action: 'mute' | 'unmute' | 'ban' | 'unban' | 'timeout') => {
+    moderateUser(userId, action)
     onUserAction(userId, action)
+    
+    // Show confirmation toast
+    const user = state.users.find(u => u.id === userId)
+    if (user) {
+      switch (action) {
+        case 'ban':
+          toast.success(`🚫 ${user.username} has been banned`)
+          break
+        case 'unban':
+          toast.success(`✅ ${user.username} has been unbanned`)
+          break
+        case 'mute':
+          toast.success(`🔇 ${user.username} has been muted`)
+          break
+        case 'unmute':
+          toast.success(`🔊 ${user.username} has been unmuted`)
+          break
+        case 'timeout':
+          toast.success(`⏰ ${user.username} has been timed out`)
+          break
+      }
+    }
+    
+    setSelectedUserId(null)
+    setShowUserActions(false)
   }
 
   const getRoleIcon = (role: string) => {
@@ -321,16 +232,23 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
     }
   }
 
-  const filteredMessages = messages.filter(msg => {
+  const currentBroadcastMessages = state.messages.filter(
+    msg => msg.broadcastId === broadcastId
+  )
+
+  const filteredMessages = currentBroadcastMessages.filter(msg => {
     if (searchTerm && !msg.content.toLowerCase().includes(searchTerm.toLowerCase())) {
       return false
     }
-    if (!chatFilters.showSystem && msg.type === 'system') return false
-    if (!chatFilters.showUsers && msg.type === 'user') return false
-    if (!chatFilters.showModerators && (msg.type === 'moderator' || msg.type === 'host')) return false
+    if (!chatFilters.showSystem && msg.messageType === 'system') return false
+    if (!chatFilters.showUsers && msg.messageType === 'user') return false
+    if (!chatFilters.showModerators && (msg.messageType === 'moderator' || msg.messageType === 'host')) return false
     if (chatFilters.hideSpam && msg.isModerated) return false
     return true
   })
+
+  const pinnedMessage = filteredMessages.find(msg => msg.isPinned)
+  const typingUsers = state.typingUsers.filter(typing => typing.broadcastId === broadcastId)
 
   return (
     <div className="space-y-6">
@@ -352,7 +270,7 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               <Button
                 variant="ghost"
                 size="sm"
-                onClick={() => setPinnedMessage(null)}
+                onClick={() => handleMessageAction(pinnedMessage.id, 'pin')}
                 className="h-6 w-6 p-0"
               >
                 <Pin className="h-3 w-3" />
@@ -370,6 +288,15 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               <MessageSquare className="h-5 w-5" />
               Live Chat
               <Badge variant="outline">{filteredMessages.length} messages</Badge>
+              {state.isConnected ? (
+                <Badge variant="default" className="bg-green-500">
+                  🟢 Live
+                </Badge>
+              ) : (
+                <Badge variant="destructive">
+                  🔴 Offline
+                </Badge>
+              )}
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -379,13 +306,18 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               >
                 <Settings className="h-4 w-4" />
               </Button>
-              {autoModeration && (
+              {state.chatSettings.autoModeration && (
                 <Badge variant="secondary">Auto-Mod</Badge>
               )}
-              {slowMode > 0 && (
+              {state.chatSettings.slowMode > 0 && (
                 <Badge variant="outline">
                   <Clock className="h-3 w-3 mr-1" />
-                  {slowMode}s
+                  {state.chatSettings.slowMode}s
+                </Badge>
+              )}
+              {typingUsers.length > 0 && (
+                <Badge variant="outline" className="animate-pulse">
+                  {typingUsers.length} typing...
                 </Badge>
               )}
             </div>
@@ -398,7 +330,7 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Slow Mode</label>
-                  <Select value={slowMode.toString()} onValueChange={(value) => setSlowMode(parseInt(value))}>
+                  <Select value={state.chatSettings.slowMode.toString()} onValueChange={(value) => updateSettings({ ...state.chatSettings, slowMode: parseInt(value) })}>
                     <SelectTrigger className="h-8 text-xs">
                       <SelectValue />
                     </SelectTrigger>
@@ -414,12 +346,12 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
                 <div className="space-y-1">
                   <label className="text-xs font-medium">Auto-Moderation</label>
                   <Button
-                    variant={autoModeration ? "default" : "outline"}
+                    variant={state.chatSettings.autoModeration ? "default" : "outline"}
                     size="sm"
-                    onClick={() => setAutoModeration(!autoModeration)}
+                    onClick={() => updateSettings({ ...state.chatSettings, autoModeration: !state.chatSettings.autoModeration })}
                     className="w-full h-8 text-xs"
                   >
-                    {autoModeration ? 'On' : 'Off'}
+                    {state.chatSettings.autoModeration ? 'On' : 'Off'}
                   </Button>
                 </div>
                 <div className="space-y-1">
@@ -453,11 +385,11 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
           <ScrollArea className="h-96 pr-4">
             <div className="space-y-3">
               {filteredMessages.map((message) => {
-                const RoleIcon = getRoleIcon(message.type)
+                const RoleIcon = getRoleIcon(message.messageType)
                 return (
                   <div
                     key={message.id}
-                    className={`p-3 rounded-lg transition-colors ${getMessageTypeColor(message.type)} ${
+                    className={`p-3 rounded-lg transition-colors ${getMessageTypeColor(message.messageType)} ${
                       message.isHighlighted ? 'ring-2 ring-blue-200' : ''
                     } ${message.isModerated ? 'opacity-50' : ''}`}
                   >
@@ -470,10 +402,10 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
                         </Avatar>
                         <div className="flex-1">
                           <div className="flex items-center gap-2 mb-1">
-                            <span className={`font-medium text-sm ${getRoleColor(message.type)}`}>
+                            <span className={`font-medium text-sm ${getRoleColor(message.messageType)}`}>
                               {message.username}
                             </span>
-                            {RoleIcon && <RoleIcon className={`h-3 w-3 ${getRoleColor(message.type)}`} />}
+                            {RoleIcon && <RoleIcon className={`h-3 w-3 ${getRoleColor(message.messageType)}`} />}
                             <span className="text-xs text-gray-500">
                               {message.timestamp.toLocaleTimeString()}
                             </span>
@@ -506,7 +438,7 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
                               {message.likes > 0 && message.likes}
                             </Button>
                             
-                            {message.type === 'user' && (
+                            {message.messageType === 'user' && (
                               <>
                                 <Button
                                   variant="ghost"
@@ -519,7 +451,7 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => handleMessageAction(message.id, 'moderate')}
+                                  onClick={() => moderateMessage(message.id, 'hide')}
                                   className="h-6 px-2 text-xs text-red-600"
                                 >
                                   <Flag className="h-3 w-3" />
@@ -559,11 +491,11 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               <div className="flex-1 relative">
                 <Input
                   ref={chatInputRef}
-                  placeholder={isLive ? "Send a message to listeners..." : "Test mode: Send a test message..."}
+                  placeholder={state.isConnected ? "Send a message to listeners..." : "Connecting to chat..."}
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onChange={(e) => handleInputChange(e.target.value)}
                   onKeyPress={(e) => e.key === "Enter" && handleSendMessage()}
-                  disabled={false} // Always enabled for testing
+                  disabled={!state.isConnected}
                   className={selectedMessageType === 'announcement' ? 'border-red-300' : ''}
                 />
                 {selectedMessageType === 'announcement' && (
@@ -573,18 +505,26 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
               
               <Button
                 onClick={handleSendMessage}
-                disabled={!isLive || !newMessage.trim()}
+                disabled={!newMessage.trim() || !state.isConnected}
                 className={selectedMessageType === 'announcement' ? 'bg-red-600 hover:bg-red-700' : ''}
               >
                 <Send className="h-4 w-4" />
               </Button>
             </div>
             
-            {selectedMessageType === 'announcement' && (
-              <p className="text-xs text-red-600">
-                This message will be highlighted and pinned automatically
-              </p>
-            )}
+            <div className="flex items-center justify-between text-xs">
+              {selectedMessageType === 'announcement' && (
+                <p className="text-red-600">
+                  This message will be highlighted and sent to all listeners
+                </p>
+              )}
+              <div className="flex items-center gap-2">
+                <div className={`w-2 h-2 rounded-full ${state.isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
+                <span className="text-gray-500">
+                  {state.isConnected ? 'Connected' : 'Disconnected'}
+                </span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -593,14 +533,14 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center justify-between">
-            <span>Active Users ({chatUsers.length})</span>
-            <Badge variant="outline">{chatUsers.filter(u => !u.isBanned).length} active</Badge>
+            <span>Active Users ({state.users.length})</span>
+            <Badge variant="outline">{state.users.filter(u => u.isOnline).length} active</Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           <ScrollArea className="h-32">
             <div className="space-y-2">
-              {chatUsers.slice(0, 10).map((user) => {
+              {state.users.slice(0, 10).map((user) => {
                 const RoleIcon = getRoleIcon(user.role)
                 return (
                   <div key={user.id} className="flex items-center justify-between p-2 bg-gray-50 rounded">
@@ -610,8 +550,7 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
                       </Avatar>
                       <span className="text-sm font-medium">{user.username}</span>
                       {RoleIcon && <RoleIcon className={`h-3 w-3 ${getRoleColor(user.role)}`} />}
-                      {user.isMuted && <VolumeX className="h-3 w-3 text-red-500" />}
-                      {user.isBanned && <Ban className="h-3 w-3 text-red-500" />}
+                      {!user.isOnline && <VolumeX className="h-3 w-3 text-gray-400" />}
                     </div>
                     <div className="flex items-center gap-1">
                       {user.role === 'listener' && (
@@ -622,7 +561,7 @@ export function EnhancedChat({ isLive, hostId, onMessageSend, onUserAction }: En
                             onClick={() => handleUserAction(user.id, 'mute')}
                             className="h-6 w-6 p-0"
                           >
-                            {user.isMuted ? <Volume2 className="h-3 w-3" /> : <VolumeX className="h-3 w-3" />}
+                            <VolumeX className="h-3 w-3" />
                           </Button>
                           <Button
                             variant="ghost"

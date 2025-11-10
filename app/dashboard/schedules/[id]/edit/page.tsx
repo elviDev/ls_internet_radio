@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { 
   ArrowLeft,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   User,
   Tag,
@@ -31,15 +31,57 @@ import {
   AlertCircle
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { DatePicker } from "@/components/ui/date-picker"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
+
+function DatePicker({
+  date,
+  onDateChange,
+  placeholder
+}: {
+  date?: Date
+  onDateChange: (date?: Date) => void
+  placeholder?: string
+}) {
+  const [open, setOpen] = useState(false)
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <Input
+          readOnly
+          value={date ? format(date, "yyyy-MM-dd") : ""}
+          placeholder={placeholder}
+        />
+      </PopoverTrigger>
+      <PopoverContent className="w-auto p-0">
+        <Calendar
+          mode="single"
+          selected={date}
+          onSelect={(d) => {
+            onDateChange(d as Date | undefined)
+            setOpen(false)
+          }}
+        />
+      </PopoverContent>
+    </Popover>
+  )
+}
 
 const scheduleSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").max(2000, "Description must be less than 2000 characters"),
   type: z.enum(["EVENT", "CAMPAIGN", "ADVERTISEMENT", "LIVE_BROADCAST", "ANNOUNCEMENT", "MAINTENANCE"]),
   status: z.enum(["DRAFT", "SCHEDULED", "ACTIVE", "COMPLETED", "CANCELLED", "FAILED"]),
-  startTime: z.string().min(1, "Start time is required"),
+  // store dates as ISO date strings (YYYY-MM-DD) to match form values
+  startTime: z.string().min(1, "Start date is required"),
+  startTimeHour: z.string().default("09"),
+  startTimeMinute: z.string().default("00"),
   endTime: z.string().optional(),
+  endTimeHour: z.string().default("10"),
+  endTimeMinute: z.string().default("00"),
   duration: z.string().optional(),
   priority: z.string().min(0).max(10),
   assignedTo: z.string().optional(),
@@ -89,12 +131,48 @@ type Schedule = {
 }
 
 const scheduleTypes = [
-  { value: "EVENT", label: "Event", description: "Public events, conferences, webinars" },
-  { value: "CAMPAIGN", label: "Campaign", description: "Marketing campaigns and promotions" },
-  { value: "ADVERTISEMENT", label: "Advertisement", description: "Commercial advertisements and sponsors" },
-  { value: "LIVE_BROADCAST", label: "Live Broadcast", description: "Live streaming events and shows" },
-  { value: "ANNOUNCEMENT", label: "Announcement", description: "Public announcements and notifications" },
-  { value: "MAINTENANCE", label: "Maintenance", description: "System maintenance and technical work" }
+  { 
+    value: "EVENT", 
+    label: "Event", 
+    icon: CalendarIcon, 
+    description: "Concerts, meetups, interviews, contests",
+    color: "bg-blue-500"
+  },
+  { 
+    value: "CAMPAIGN", 
+    label: "Marketing Campaign", 
+    icon: Megaphone, 
+    description: "Promotional campaigns, brand activations",
+    color: "bg-green-500"
+  },
+  { 
+    value: "ADVERTISEMENT", 
+    label: "Advertisement", 
+    icon: Zap, 
+    description: "Audio spots, banners, sponsored content",
+    color: "bg-yellow-500"
+  },
+  { 
+    value: "LIVE_BROADCAST", 
+    label: "Live Broadcast", 
+    icon: Music, 
+    description: "Live shows, streaming sessions",
+    color: "bg-red-500"
+  },
+  { 
+    value: "ANNOUNCEMENT", 
+    label: "Announcement", 
+    icon: Bell, 
+    description: "Important announcements, updates",
+    color: "bg-purple-500"
+  },
+  { 
+    value: "MAINTENANCE", 
+    label: "Maintenance", 
+    icon: Users, 
+    description: "System maintenance, technical tasks",
+    color: "bg-gray-500"
+  }
 ]
 
 const statusOptions = [

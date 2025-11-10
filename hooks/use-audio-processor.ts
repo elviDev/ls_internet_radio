@@ -33,6 +33,8 @@ export function useAudioProcessor(initialState: AudioProcessorState) {
   const masterGainRef = useRef<GainNode | null>(null)
   const masterLimiterRef = useRef<DynamicsCompressorNode | null>(null)
   const masterAnalyserRef = useRef<AnalyserNode | null>(null)
+  const broadcastDestinationRef = useRef<MediaStreamAudioDestinationNode | null>(null)
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null)
   const channelNodesRef = useRef<Map<string, {
     source?: MediaStreamAudioSourceNode
     gain: GainNode
@@ -48,6 +50,8 @@ export function useAudioProcessor(initialState: AudioProcessorState) {
   
   const [isInitialized, setIsInitialized] = useState(false)
   const [audioState, setAudioState] = useState(initialState)
+  const [isBroadcasting, setIsBroadcasting] = useState(false)
+  const [broadcastStream, setBroadcastStream] = useState<MediaStream | null>(null)
 
   // Initialize Web Audio API
   const initializeAudio = useCallback(async () => {
@@ -75,10 +79,14 @@ export function useAudioProcessor(initialState: AudioProcessorState) {
       masterAnalyserRef.current.fftSize = 512
       masterAnalyserRef.current.smoothingTimeConstant = 0.8
       
-      // Connect master chain: gain -> limiter -> analyser (NO destination to prevent feedback)
+      // Create broadcast destination for streaming
+      broadcastDestinationRef.current = audioContextRef.current.createMediaStreamDestination()
+      
+      // Connect master chain: gain -> limiter -> analyser -> broadcast destination
       masterGainRef.current.connect(masterLimiterRef.current)
       masterLimiterRef.current.connect(masterAnalyserRef.current)
-      // NOTE: Not connecting to destination to prevent microphone feedback
+      masterAnalyserRef.current.connect(broadcastDestinationRef.current)
+      // NOTE: Not connecting to speakers to prevent microphone feedback
       
       // Set initial master volume
       masterGainRef.current.gain.value = initialState.masterVolume / 100
@@ -257,6 +265,56 @@ export function useAudioProcessor(initialState: AudioProcessorState) {
     return dataArray
   }, [])
 
+  // Start broadcasting the mixed audio
+  const startBroadcast = useCallback((onAudioData: (data: string) => void) => {
+    if (!broadcastDestinationRef.current || isBroadcasting) return false
+
+    try {
+      const stream = broadcastDestinationRef.current.stream
+      setBroadcastStream(stream)
+      
+      const mediaRecorder = new MediaRecorder(stream, {
+        mimeType: 'audio/webm;codecs=opus',
+        audioBitsPerSecond: 128000
+      })
+
+      mediaRecorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          const reader = new FileReader()
+          reader.onloadend = () => {
+            const base64data = reader.result as string
+            onAudioData(base64data.split(',')[1]) // Remove data URL prefix
+          }
+          reader.readAsDataURL(event.data)
+        }
+      }
+
+      mediaRecorder.start(200) // 200ms chunks for low latency
+      mediaRecorderRef.current = mediaRecorder
+      setIsBroadcasting(true)
+      
+      return true
+    } catch (error) {
+      console.error('Failed to start broadcast:', error)
+      return false
+    }
+  }, [isBroadcasting])
+
+  // Stop broadcasting
+  const stopBroadcast = useCallback(() => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      mediaRecorderRef.current.stop()
+    }
+    mediaRecorderRef.current = null
+    setBroadcastStream(null)
+    setIsBroadcasting(false)
+  }, [])
+
+  // Get broadcast stream for external use
+  const getBroadcastStream = useCallback(() => {
+    return broadcastDestinationRef.current?.stream || null
+  }, [])
+
   // Initialize audio processing for all channels
   useEffect(() => {
     if (isInitialized) {
@@ -285,12 +343,17 @@ export function useAudioProcessor(initialState: AudioProcessorState) {
   return {
     isInitialized,
     audioState,
+    isBroadcasting,
+    broadcastStream,
     initializeAudio,
     updateChannel,
     updateMasterVolume,
     updateLimiterThreshold,
     updateNoiseGate,
     getMasterAnalyserData,
+    startBroadcast,
+    stopBroadcast,
+    getBroadcastStream,
     getChannelAnalyser: (channelId: string) => {
       const nodes = channelNodesRef.current.get(channelId)
       if (nodes && audioContextRef.current) {

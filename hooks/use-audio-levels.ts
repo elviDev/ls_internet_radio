@@ -61,6 +61,11 @@ export function useAudioLevels({
       
       return true
     } catch (error) {
+      // Silently handle permission denied - this is expected behavior
+      if (error instanceof Error && error.name === 'NotAllowedError') {
+        // User denied microphone permission - this is normal
+        return false
+      }
       console.warn(`Failed to initialize microphone for ${channelId}:`, error)
       return false
     }

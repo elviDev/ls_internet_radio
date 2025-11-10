@@ -9,7 +9,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
     }
 
-    const { broadcastId, message, messageType = 'user' } = await request.json()
+    const { broadcastId, message, messageType = 'user', replyTo, userAvatar } = await request.json()
 
     // Create chat message
     const chatMessage = await prisma.chatMessage.create({
@@ -17,8 +17,10 @@ export async function POST(request: NextRequest) {
         broadcastId,
         userId: user.id,
         username: user.firstName + ' ' + user.lastName,
+        userAvatar: userAvatar || null,
         content: message,
         messageType,
+        replyTo: replyTo || null,
         timestamp: new Date()
       }
     })
@@ -45,6 +47,22 @@ export async function GET(request: NextRequest) {
 
     const messages = await prisma.chatMessage.findMany({
       where: { broadcastId },
+      include: {
+        replyToMessage: {
+          select: {
+            id: true,
+            username: true,
+            content: true
+          }
+        },
+        moderator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        }
+      },
       orderBy: { timestamp: 'asc' },
       take: 100
     })

@@ -1,60 +1,139 @@
 "use client"
 
-import { useEffect } from "react"
-import { useRouter } from "next/navigation"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { ArrowRight, Radio } from "lucide-react"
+import { useState, useEffect } from "react"
+import { BroadcastStudioInterface } from "@/components/studio/broadcast-studio-interface"
+import { ConnectionTest } from "@/components/debug/connection-test"
+import { Card, CardContent } from "@/components/ui/card"
+import { Activity } from "lucide-react"
 
-export default function StudioRedirectPage() {
-  const router = useRouter()
+interface BroadcastData {
+  id: string
+  title: string
+  staff: Array<{
+    id: string
+    role: string
+    user: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+    }
+    isActive: boolean
+  }>
+  guests: Array<{
+    id: string
+    name: string
+    title?: string
+    role: string
+  }>
+}
+
+export default function StudioPage() {
+  const [broadcastData, setBroadcastData] = useState<BroadcastData | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Auto-redirect after 3 seconds
-    const timer = setTimeout(() => {
-      router.push('/dashboard/broadcasts')
-    }, 3000)
+    fetchCurrentBroadcast()
+  }, [])
 
-    return () => clearTimeout(timer)
-  }, [router])
+  const fetchCurrentBroadcast = async () => {
+    try {
+      // Try to get current live broadcast first
+      const response = await fetch('/api/broadcasts/current')
+      if (response.ok) {
+        const data = await response.json()
+        setBroadcastData(data)
+      } else {
+        // If no current broadcast, create a demo session
+        setBroadcastData({
+          id: 'studio-session-' + Date.now(),
+          title: 'Studio Session',
+          staff: [
+            {
+              id: 'host-1',
+              role: 'HOST',
+              user: {
+                id: 'user-1',
+                firstName: 'Studio',
+                lastName: 'Host',
+                email: 'host@example.com'
+              },
+              isActive: true
+            }
+          ],
+          guests: []
+        })
+      }
+    } catch (err) {
+      console.error('Failed to fetch broadcast data:', err)
+      setError('Failed to load broadcast data')
+    } finally {
+      setLoading(false)
+    }
+  }
 
+  if (loading) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <Activity className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p>Loading broadcast data...</p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  if (error || !broadcastData) {
+    return (
+      <div className="p-6">
+        <Card>
+          <CardContent className="flex items-center justify-center py-12">
+            <div className="text-center">
+              <p className="text-red-600 mb-4">{error || 'No broadcast data available'}</p>
+              <button 
+                onClick={fetchCurrentBroadcast}
+                className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700"
+              >
+                Retry
+              </button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    )
+  }
+
+  // Transform broadcast data to match component interface
+  const staff = broadcastData.staff.map(s => ({
+    id: s.id,
+    name: `${s.user.firstName} ${s.user.lastName}`,
+    role: s.role.toLowerCase().replace('_', '-') as 'host' | 'co-host' | 'sound-engineer' | 'producer',
+    userId: s.user.id,
+    isOnline: s.isActive
+  }))
+
+  const guests = broadcastData.guests.map(g => ({
+    id: g.id,
+    name: g.name,
+    type: 'guest' as const,
+    userId: g.id,
+    isConnected: false
+  }))
+  
   return (
-    <div className="p-6 flex items-center justify-center min-h-[60vh]">
-      <Card className="max-w-md w-full text-center">
-        <CardHeader>
-          <div className="flex justify-center mb-4">
-            <Radio className="h-16 w-16 text-slate-400" />
-          </div>
-          <CardTitle>Studio Has Moved!</CardTitle>
-          <CardDescription>
-            The studio is now integrated within each broadcast. You'll find the studio controls when you select a specific broadcast.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <p className="text-sm text-slate-600">
-            To access the studio:
-          </p>
-          <ol className="text-sm text-left list-decimal list-inside space-y-1 text-slate-600">
-            <li>Go to the Broadcasts page</li>
-            <li>Select or create a broadcast</li>
-            <li>Click "Go Live" or "Enter Studio"</li>
-          </ol>
-          
-          <div className="pt-4">
-            <Button 
-              onClick={() => router.push('/dashboard/broadcasts')}
-              className="w-full"
-            >
-              Go to Broadcasts
-              <ArrowRight className="h-4 w-4 ml-2" />
-            </Button>
-          </div>
-          
-          <p className="text-xs text-slate-500">
-            Redirecting automatically in 3 seconds...
-          </p>
-        </CardContent>
-      </Card>
+    <div className="p-6 space-y-8">
+      <ConnectionTest />
+      <BroadcastStudioInterface 
+        broadcastId={broadcastData.id}
+        stationName={broadcastData.title}
+        staff={staff}
+        guests={guests}
+      />
     </div>
   )
 }

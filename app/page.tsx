@@ -8,6 +8,7 @@ import UpcomingEvents from "@/components/upcoming-events";
 import FeaturedPrograms from "@/components/featured-programs";
 import HeroAnimation from "@/components/hero-animation";
 
+
 export default function Home() {
   return (
     <div className="flex flex-col min-h-screen">
@@ -40,75 +41,85 @@ export default function Home() {
             <p className="text-xl md:text-2xl">★ Multilanguage Translations</p>
           </div>
           <div className="flex flex-wrap justify-center gap-4 mt-8 animate-fade-in-delay-2">
-            <Button
-              size="lg"
-              className="bg-white hover:bg-brand-100 text-brand-700"
-            >
-              <Play className="mr-2 h-5 w-5" /> Listen Now
-            </Button>
-            <Button
-              size="lg"
-              variant="outline"
-              className="text-primary bg-transparent border-white hover:bg-white/10"
-            >
-              Start Project
-            </Button>
+            <Link href="/podcasts">
+              <Button
+                size="lg"
+                className="bg-white hover:bg-brand-100 text-brand-700"
+              >
+                <Play className="mr-2 h-5 w-5" /> Listen Now
+              </Button>
+            </Link>
+            <Link href="/contact">
+              <Button
+                size="lg"
+                variant="outline"
+                className="text-primary bg-transparent border-white hover:bg-white/10"
+              >
+                Start Project
+              </Button>
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Live Player (Persistent) */}
-      <LivePlayer />
+
 
       {/* Featured Content Section */}
       <section className="section-padding bg-white">
         <div className="container px-4 mx-auto">
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-16">
-            <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all">
-              <div className="p-3 rounded-full bg-brand-100 mb-4">
-                <Radio className="w-8 h-8 text-brand-600" />
+            <div className="group cursor-pointer">
+              <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all group-hover:scale-105">
+                <div className="p-3 rounded-full bg-brand-100 mb-4 group-hover:bg-brand-200 transition-colors">
+                  <Radio className="w-8 h-8 text-brand-600" />
+                </div>
+                <h3 className="text-xl font-serif font-semibold mb-2">
+                  Live Broadcasts
+                </h3>
+                <p className="text-muted-foreground">
+                  Tune in to our live shows using the player below and join the chat
+                </p>
               </div>
-              <h3 className="text-xl font-serif font-semibold mb-2">
-                Live Broadcasts
-              </h3>
-              <p className="text-muted-foreground">
-                Tune in to our live shows and stay connected with real-time
-                content
-              </p>
             </div>
-            <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all">
-              <div className="p-3 rounded-full bg-brand-100 mb-4">
-                <Headphones className="w-8 h-8 text-brand-600" />
+            <Link href="/podcasts" className="group">
+              <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all group-hover:scale-105">
+                <div className="p-3 rounded-full bg-brand-100 mb-4 group-hover:bg-brand-200 transition-colors">
+                  <Headphones className="w-8 h-8 text-brand-600" />
+                </div>
+                <h3 className="text-xl font-serif font-semibold mb-2">
+                  Podcasts
+                </h3>
+                <p className="text-muted-foreground">
+                  Explore our collection of podcasts covering various topics and
+                  interests
+                </p>
               </div>
-              <h3 className="text-xl font-serif font-semibold mb-2">
-                Podcasts
-              </h3>
-              <p className="text-muted-foreground">
-                Explore our collection of podcasts covering various topics and
-                interests
-              </p>
-            </div>
-            <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all">
-              <div className="p-3 rounded-full bg-brand-100 mb-4">
-                <BookOpen className="w-8 h-8 text-brand-600" />
+            </Link>
+            <Link href="/audiobooks" className="group">
+              <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all group-hover:scale-105">
+                <div className="p-3 rounded-full bg-brand-100 mb-4 group-hover:bg-brand-200 transition-colors">
+                  <BookOpen className="w-8 h-8 text-brand-600" />
+                </div>
+                <h3 className="text-xl font-serif font-semibold mb-2">
+                  Audiobooks
+                </h3>
+                <p className="text-muted-foreground">
+                  Immerse yourself in stories narrated by professional voice
+                  artists
+                </p>
               </div>
-              <h3 className="text-xl font-serif font-semibold mb-2">
-                Audiobooks
-              </h3>
-              <p className="text-muted-foreground">
-                Immerse yourself in stories narrated by professional voice
-                artists
-              </p>
-            </div>
-            <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all">
-              <div className="p-3 rounded-full bg-brand-100 mb-4">
-                <Calendar className="w-8 h-8 text-brand-600" />
+            </Link>
+            <Link href="/events" className="group">
+              <div className="flex flex-col items-center text-center p-6 rounded-xl bg-gradient-to-br from-warmgray-50 to-warmgray-100 shadow-sm hover:shadow-md transition-all group-hover:scale-105">
+                <div className="p-3 rounded-full bg-brand-100 mb-4 group-hover:bg-brand-200 transition-colors">
+                  <Calendar className="w-8 h-8 text-brand-600" />
+                </div>
+                <h3 className="text-xl font-serif font-semibold mb-2">Events</h3>
+                <p className="text-muted-foreground">
+                  Join our upcoming events and be part of our growing community
+                </p>
               </div>
-              <h3 className="text-xl font-serif font-semibold mb-2">Events</h3>
-              <p className="text-muted-foreground">
-                Join our upcoming events and be part of our growing community
-              </p>
-            </div>
+            </Link>
           </div>
 
           <div className="mb-20">
@@ -212,9 +223,11 @@ export default function Home() {
             Subscribe to our newsletter and never miss updates on new podcasts,
             events, and special broadcasts.
           </p>
-          <Button className="bg-white hover:bg-brand-100 text-brand-700 px-8 py-6 text-lg">
-            Contact
-          </Button>
+          <Link href="/contact">
+            <Button className="bg-white hover:bg-brand-100 text-brand-700 px-8 py-6 text-lg">
+              Contact
+            </Button>
+          </Link>
         </div>
       </section>
     </div>

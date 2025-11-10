@@ -4,8 +4,9 @@ import { adminOnly } from "@/lib/auth/adminOnly";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 // POST /api/admin/staff/[id]/reject - Reject a pending staff application
-export const POST = adminOnly(async (req: Request, { params }: { params: { id: string } }) => {
+export const POST = adminOnly(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   try {
+    const { id } = await params;
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -17,7 +18,7 @@ export const POST = adminOnly(async (req: Request, { params }: { params: { id: s
     }
     // Check if staff member exists and is pending approval
     const staff = await prisma.staff.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         firstName: true,
@@ -37,7 +38,7 @@ export const POST = adminOnly(async (req: Request, { params }: { params: { id: s
 
     // Delete the staff application (hard delete for rejected applications)
     await prisma.staff.delete({
-      where: { id: params.id },
+      where: { id },
     });
 
     return NextResponse.json({

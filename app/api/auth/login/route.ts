@@ -53,7 +53,7 @@ export async function POST(req: Request) {
         { status: 401 }
       );
     }
-
+console.log("User found",user);
     const passwordValid = await comparePassword(password, user.password);
     if (!passwordValid) {
       return NextResponse.json(
@@ -125,6 +125,7 @@ export async function POST(req: Request) {
     if (err instanceof z.ZodError) {
       return NextResponse.json({ error: err.errors }, { status: 400 });
     }
+    console.log(err)
     return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }

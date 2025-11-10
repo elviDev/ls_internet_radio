@@ -4,15 +4,15 @@
   "private": true,
 
   "scripts": {
-    "dev": "node server.js",
+    "dev": "next dev",
     "build": "next build",
-    "start": "NODE_ENV=production node server.js",
+    "start": "next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",
     "db:migrate": "prisma migrate dev",
     "db:push-dev": "prisma db push",
-    "db:seed": "npx ts-node scripts/seed-dev-data.ts",
+    "db:seed": "npx ts-node scripts/seed-genres.ts",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose up --build",

@@ -232,8 +232,8 @@ export default function PodcastDetailPage() {
   }
 
   const getTotalDuration = () => {
-    console.log("Duration calculation for episodes:", episodes[0].duration)
-    return episodes.reduce((total, episode) => total + episode.duration, 0)
+    console.log("Duration calculation for episodes:", episodes[0]?.duration)
+    return episodes.reduce((total, episode) => total + episode?.duration, 0)
   }
 
   if (loading) {

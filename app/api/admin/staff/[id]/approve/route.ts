@@ -4,8 +4,9 @@ import { adminOnly } from "@/lib/auth/adminOnly";
 import { getCurrentUser } from "@/lib/auth/getCurrentUser";
 
 // POST /api/admin/staff/[id]/approve - Approve a pending staff application
-export const POST = adminOnly(async (req: Request, { params }: { params: { id: string } }) => {
+export const POST = adminOnly(async (req: Request, { params }: { params: Promise<{ id: string }> }) => {
   try {
+    const { id } = await params;
     const currentUser = await getCurrentUser();
     if (!currentUser) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -18,7 +19,7 @@ export const POST = adminOnly(async (req: Request, { params }: { params: { id: s
 
     // Check if staff member exists and is pending approval
     const staff = await prisma.staff.findUnique({
-      where: { id: params.id },
+      where: { id },
       select: {
         id: true,
         firstName: true,
@@ -39,7 +40,7 @@ export const POST = adminOnly(async (req: Request, { params }: { params: { id: s
 
     // Approve the staff member
     const approvedStaff = await prisma.staff.update({
-      where: { id: params.id },
+      where: { id },
       data: {
         isApproved: true,
         approvedAt: new Date(),

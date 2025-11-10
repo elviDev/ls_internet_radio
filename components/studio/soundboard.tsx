@@ -250,7 +250,13 @@ export function Soundboard({ isLive, onSoundPlay, onSoundStop }: SoundboardProps
   useEffect(() => {
     // Convert uploaded assets
     const assetSounds: SoundEffect[] = assets.map((asset, index) => {
-      const metadata = asset.tags ? JSON.parse(asset.tags) : {}
+      let metadata = {}
+      try {
+        metadata = asset.tags ? JSON.parse(asset.tags) : {}
+      } catch (error) {
+        // If tags is not valid JSON, treat as plain string
+        metadata = { tags: asset.tags ? asset.tags.split(',') : [] }
+      }
       const audioType = metadata.audioType || 'effect'
       
       return {

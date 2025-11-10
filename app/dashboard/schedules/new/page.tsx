@@ -15,7 +15,7 @@ import { Switch } from "@/components/ui/switch"
 import { Badge } from "@/components/ui/badge"
 import { 
   ArrowLeft,
-  Calendar,
+  Calendar as CalendarIcon,
   Clock,
   User,
   Tag,
@@ -29,16 +29,24 @@ import {
   Users
 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
-import { DatePicker } from "@/components/ui/date-picker"
+import { Calendar } from "@/components/ui/calendar"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { cn } from "@/lib/utils"
 
 const scheduleSchema = z.object({
   title: z.string().min(1, "Title is required").max(200, "Title must be less than 200 characters"),
   description: z.string().min(10, "Description must be at least 10 characters").max(2000, "Description must be less than 2000 characters"),
   type: z.enum(["EVENT", "CAMPAIGN", "ADVERTISEMENT", "LIVE_BROADCAST", "ANNOUNCEMENT", "MAINTENANCE"]),
-  startTime: z.string().min(1, "Start time is required"),
-  endTime: z.string().optional(),
+  startTime: z.date(),
+  startTimeHour: z.string().default("09"),
+  startTimeMinute: z.string().default("00"),
+  endTime: z.date().optional(),
+  endTimeHour: z.string().default("10"),
+  endTimeMinute: z.string().default("00"),
   duration: z.number().min(1).optional(),
   assignedTo: z.string().optional(),
+  programId: z.string().optional(),
   priority: z.number().min(0).max(10).default(0),
   tags: z.string().optional(),
   isRecurring: z.boolean().default(false),
@@ -59,47 +67,55 @@ type Staff = {
   role: string
 }
 
+type Program = {
+  id: string
+  title: string
+  slug: string
+  category: string
+  status: string
+}
+
 const scheduleTypes = [
   { 
-    value: "EVENT", 
-    label: "Event", 
-    icon: Calendar, 
-    description: "Concerts, meetups, interviews, contests",
-    color: "bg-blue-500"
-  },
-  { 
-    value: "CAMPAIGN", 
-    label: "Marketing Campaign", 
-    icon: Megaphone, 
-    description: "Promotional campaigns, brand activations",
-    color: "bg-green-500"
-  },
-  { 
-    value: "ADVERTISEMENT", 
-    label: "Advertisement", 
-    icon: Zap, 
-    description: "Audio spots, banners, sponsored content",
-    color: "bg-yellow-500"
-  },
-  { 
     value: "LIVE_BROADCAST", 
-    label: "Live Broadcast", 
+    label: "Live Show", 
     icon: Music, 
-    description: "Live shows, streaming sessions",
+    description: "Live radio shows, talk shows, music programs",
     color: "bg-red-500"
   },
   { 
+    value: "EVENT", 
+    label: "Station Event", 
+    icon: CalendarIcon, 
+    description: "Concerts, listener meetups, interviews, contests",
+    color: "bg-blue-500"
+  },
+  { 
+    value: "ADVERTISEMENT", 
+    label: "Commercial Spot", 
+    icon: Zap, 
+    description: "Audio advertisements, sponsor spots, PSAs",
+    color: "bg-yellow-500"
+  },
+  { 
+    value: "CAMPAIGN", 
+    label: "Promotion Campaign", 
+    icon: Megaphone, 
+    description: "Station promotions, listener drives, contests",
+    color: "bg-green-500"
+  },
+  { 
     value: "ANNOUNCEMENT", 
-    label: "Announcement", 
+    label: "Station Announcement", 
     icon: Bell, 
-    description: "Important announcements, updates",
+    description: "Important updates, weather alerts, news bulletins",
     color: "bg-purple-500"
   },
   { 
     value: "MAINTENANCE", 
-    label: "Maintenance", 
+    label: "Technical Break", 
     icon: Users, 
-    description: "System maintenance, technical tasks",
+    description: "Equipment maintenance, system updates, downtime",
     color: "bg-gray-500"
   }
 ]
@@ -108,6 +124,7 @@ export default function NewSchedulePage() {
   const router = useRouter()
   const { toast } = useToast()
   const [staff, setStaff] = useState<Staff[]>([])
+  const [programs, setPrograms] = useState<Program[]>([])
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [tagInput, setTagInput] = useState("")
   const [tags, setTags] = useState<string[]>([])
@@ -118,9 +135,14 @@ export default function NewSchedulePage() {
       title: "",
       description: "",
       type: "EVENT",
-      startTime: "",
-      endTime: "",
+      startTime: undefined as Date | undefined,
+      startTimeHour: "09",
+      startTimeMinute: "00",
+      endTime: undefined as Date | undefined,
+      endTimeHour: "10",
+      endTimeMinute: "00",
       assignedTo: "",
+      programId: "",
       priority: 0,
       tags: "",
       isRecurring: false,
@@ -132,6 +154,7 @@ export default function NewSchedulePage() {
 
   useEffect(() => {
     fetchStaff()
+    fetchPrograms()
   }, [])
 
   const fetchStaff = async () => {
@@ -143,6 +166,18 @@ export default function NewSchedulePage() {
       }
     } catch (error) {
       console.error("Failed to fetch staff:", error)
+    }
+  }
+
+  const fetchPrograms = async () => {
+    try {
+      const response = await fetch("/api/admin/programs?perPage=100")
+      if (response.ok) {
+        const data = await response.json()
+        setPrograms(data.programs || [])
+      }
+    } catch (error) {
+      console.error("Failed to fetch programs:", error)
     }
   }
 
@@ -165,10 +200,29 @@ export default function NewSchedulePage() {
     setIsSubmitting(true)
 
     try {
+      // Combine date and time for start time
+      const startDateTime = data.startTime ? new Date(data.startTime) : null
+      if (startDateTime) {
+        startDateTime.setHours(parseInt(data.startTimeHour), parseInt(data.startTimeMinute))
+      }
+
+      // Combine date and time for end time
+      const endDateTime = data.endTime ? new Date(data.endTime) : null
+      if (endDateTime) {
+        endDateTime.setHours(parseInt(data.endTimeHour), parseInt(data.endTimeMinute))
+      }
+
+      const scheduleData = {
+        ...data,
+        startTime: startDateTime?.toISOString(),
+        endTime: endDateTime?.toISOString(),
+        programId: data.programId && data.programId !== "no-program" ? data.programId : null
+      }
+
       const response = await fetch('/api/admin/schedules', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(scheduleData)
       })
 
       if (!response.ok) {
@@ -179,11 +233,18 @@ export default function NewSchedulePage() {
       const schedule = await response.json()
       
       toast({
-        title: "Success",
-        description: `Schedule "${data.title}" created successfully`
+        title: "Success", 
+        description: data.type === "LIVE_BROADCAST" 
+          ? `Broadcast "${data.title}" scheduled successfully` 
+          : `Schedule "${data.title}" created successfully`
       })
 
-      router.push(`/dashboard/schedules`)
+      // Redirect to the appropriate section based on type
+      if (data.type === "LIVE_BROADCAST") {
+        router.push(`/dashboard/broadcasts`)
+      } else {
+        router.push(`/dashboard/schedules`)
+      }
     } catch (error: any) {
       toast({
         title: "Error",
@@ -203,8 +264,8 @@ export default function NewSchedulePage() {
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Create New Schedule</h1>
-          <p className="text-muted-foreground">Schedule events, campaigns, and activities</p>
+          <h1 className="text-3xl font-bold tracking-tight">Schedule Radio Activity</h1>
+          <p className="text-muted-foreground">Schedule shows, events, commercials, and station activities</p>
         </div>
       </div>
 
@@ -217,11 +278,11 @@ export default function NewSchedulePage() {
               <Card>
                 <CardHeader>
                   <CardTitle className="flex items-center gap-2">
-                    <Calendar className="h-5 w-5" />
-                    Basic Information
+                    <CalendarIcon className="h-5 w-5" />
+                    Activity Details
                   </CardTitle>
                   <CardDescription>
-                    Enter the basic details for your schedule item
+                    Enter the basic details for this radio station activity
                   </CardDescription>
                 </CardHeader>
                 <CardContent className="space-y-4">
@@ -265,9 +326,9 @@ export default function NewSchedulePage() {
               {/* Schedule Type */}
               <Card>
                 <CardHeader>
-                  <CardTitle>Schedule Type</CardTitle>
+                  <CardTitle>Activity Type</CardTitle>
                   <CardDescription>
-                    Choose the type of activity you want to schedule
+                    Choose the type of radio station activity you want to schedule
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
@@ -329,42 +390,178 @@ export default function NewSchedulePage() {
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <FormField
-                      control={form.control}
-                      name="startTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>Start Date *</FormLabel>
-                          <FormControl>
-                            <DatePicker
-                              date={field.value ? new Date(field.value) : undefined}
-                              onDateChange={(date) => field.onChange(date?.toISOString().split('T')[0] || '')}
-                              placeholder="Select start date"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  {/* Start Date and Time */}
+                  <div className="space-y-2">
+                    <FormLabel>Start Date & Time *</FormLabel>
+                    <div className="grid grid-cols-3 gap-2">
+                      <FormField
+                        control={form.control}
+                        name="startTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "justify-start text-left font-normal",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {field.value ? format(field.value, "MMM dd, yyyy") : "Pick date"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={field.value}
+                                    onSelect={(date) => field.onChange(date)}
+                                    disabled={(date) => date < new Date(new Date().setHours(0, 0, 0, 0))}
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="startTimeHour"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Hour" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, i) => (
+                                    <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                      {i.toString().padStart(2, '0')}:00
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="startTimeMinute"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Min" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 4 }, (_, i) => (
+                                    <SelectItem key={i} value={(i * 15).toString().padStart(2, '0')}>
+                                      :{(i * 15).toString().padStart(2, '0')}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+                  </div>
 
-                    <FormField
-                      control={form.control}
-                      name="endTime"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormLabel>End Date</FormLabel>
-                          <FormControl>
-                            <DatePicker
-                              date={field.value ? new Date(field.value) : undefined}
-                              onDateChange={(date) => field.onChange(date?.toISOString().split('T')[0] || '')}
-                              placeholder="Select end date"
-                            />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
+                  {/* End Date and Time */}
+                  <div className="space-y-2">
+                    <FormLabel>End Date & Time (Optional)</FormLabel>
+                    <div className="grid grid-cols-3 gap-2">
+                      <FormField
+                        control={form.control}
+                        name="endTime"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "justify-start text-left font-normal",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {field.value ? format(field.value, "MMM dd, yyyy") : "Pick date"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={field.value}
+                                    onSelect={(date) => field.onChange(date)}
+                                    disabled={(date) => {
+                                      const today = new Date(new Date().setHours(0, 0, 0, 0))
+                                      const startDate = form.watch("startTime") ? new Date(form.watch("startTime")!.setHours(0, 0, 0, 0)) : today
+                                      return date < startDate
+                                    }}
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="endTimeHour"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Hour" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 24 }, (_, i) => (
+                                    <SelectItem key={i} value={i.toString().padStart(2, '0')}>
+                                      {i.toString().padStart(2, '0')}:00
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="endTimeMinute"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormControl>
+                              <Select value={field.value} onValueChange={field.onChange}>
+                                <SelectTrigger>
+                                  <SelectValue placeholder="Min" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {Array.from({ length: 4 }, (_, i) => (
+                                    <SelectItem key={i} value={(i * 15).toString().padStart(2, '0')}>
+                                      :{(i * 15).toString().padStart(2, '0')}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </FormControl>
+                          </FormItem>
+                        )}
+                      />
+                    </div>
                   </div>
 
                   <FormField
@@ -446,11 +643,33 @@ export default function NewSchedulePage() {
                           <FormItem>
                             <FormLabel>Recurring End Date</FormLabel>
                             <FormControl>
-                              <DatePicker
-                                date={field.value ? new Date(field.value) : undefined}
-                                onDateChange={(date) => field.onChange(date?.toISOString().split('T')[0])}
-                                placeholder="Select end date"
-                              />
+                              <Popover>
+                                <PopoverTrigger asChild>
+                                  <Button
+                                    variant="outline"
+                                    className={cn(
+                                      "justify-start text-left font-normal w-full",
+                                      !field.value && "text-muted-foreground"
+                                    )}
+                                  >
+                                    <CalendarIcon className="mr-2 h-4 w-4" />
+                                    {field.value ? format(new Date(field.value), "MMM dd, yyyy") : "Pick date"}
+                                  </Button>
+                                </PopoverTrigger>
+                                <PopoverContent className="w-auto p-0" align="start">
+                                  <Calendar
+                                    mode="single"
+                                    selected={field.value ? new Date(field.value) : undefined}
+                                    onSelect={(date) => field.onChange(date?.toISOString().split('T')[0])}
+                                    disabled={(date) => {
+                                      const today = new Date(new Date().setHours(0, 0, 0, 0))
+                                      const startDate = form.watch("startTime") ? new Date(form.watch("startTime")!.setHours(0, 0, 0, 0)) : today
+                                      return date < startDate
+                                    }}
+                                    initialFocus
+                                  />
+                                </PopoverContent>
+                              </Popover>
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -506,6 +725,44 @@ export default function NewSchedulePage() {
                       </FormItem>
                     )}
                   />
+
+                  {/* Program Selection - Show only for LIVE_BROADCAST */}
+                  {form.watch("type") === "LIVE_BROADCAST" && (
+                    <FormField
+                      control={form.control}
+                      name="programId"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Associated Program (Optional)</FormLabel>
+                          <Select onValueChange={field.onChange} defaultValue={field.value}>
+                            <FormControl>
+                              <SelectTrigger>
+                                <SelectValue placeholder="Select program" />
+                              </SelectTrigger>
+                            </FormControl>
+                            <SelectContent>
+                              <SelectItem value="no-program">No Program</SelectItem>
+                              {programs.map((program) => (
+                                <SelectItem key={program.id} value={program.id}>
+                                  <div className="flex items-center gap-2">
+                                    <Music className="h-4 w-4" />
+                                    {program.title}
+                                    <Badge variant="outline" className="text-xs">
+                                      {program.category.replace('_', ' ')}
+                                    </Badge>
+                                  </div>
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                          <FormDescription>
+                            Link this broadcast to an existing program
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  )}
 
                   <FormField
                     control={form.control}

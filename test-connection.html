@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Connection Test</title>
+</head>
+<body>
+    <h1>Audio Connection Test</h1>
+    <div id="status">Initializing...</div>
+    <button id="testBtn">Test Connection</button>
+    <button id="micBtn">Test Microphone</button>
+    <div id="logs"></div>
+
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script>
+        const statusDiv = document.getElementById('status');
+        const logsDiv = document.getElementById('logs');
+        const testBtn = document.getElementById('testBtn');
+        const micBtn = document.getElementById('micBtn');
+
+        function log(message) {
+            console.log(message);
+            logsDiv.innerHTML += '<div>' + new Date().toLocaleTimeString() + ': ' + message + '</div>';
+        }
+
+        // Test WebSocket connection
+        testBtn.addEventListener('click', () => {
+            log('Testing WebSocket connection...');
+            
+            const socket = io('http://localhost:3001', {
+                transports: ['websocket', 'polling'],
+                timeout: 5000
+            });
+
+            socket.on('connect', () => {
+                log('✅ WebSocket connected successfully');
+                statusDiv.textContent = 'Connected';
+                statusDiv.style.color = 'green';
+                
+                // Test joining as broadcaster
+                socket.emit('join-as-broadcaster', 'test-broadcast', {
+                    username: 'Test Host',
+                    stationName: 'Test Station'
+                });
+            });
+
+            socket.on('broadcaster-ready', (data) => {
+                log('✅ Broadcaster ready: ' + JSON.stringify(data));
+            });
+
+            socket.on('connect_error', (error) => {
+                log('❌ Connection error: ' + error.message);
+                statusDiv.textContent = 'Connection Failed';
+                statusDiv.style.color = 'red';
+            });
+
+            socket.on('disconnect', (reason) => {
+                log('⚠️ Disconnected: ' + reason);
+                statusDiv.textContent = 'Disconnected';
+                statusDiv.style.color = 'orange';
+            });
+        });
+
+        // Test microphone access
+        micBtn.addEventListener('click', async () => {
+            log('Testing microphone access...');
+            
+            try {
+                // Test AudioContext
+                const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                log('✅ AudioContext created, state: ' + audioContext.state);
+                
+                if (audioContext.state === 'suspended') {
+                    await audioContext.resume();
+                    log('✅ AudioContext resumed, state: ' + audioContext.state);
+                }
+
+                // Test microphone access
+                const stream = await navigator.mediaDevices.getUserMedia({
+                    audio: {
+                        echoCancellation: true,
+                        noiseSuppression: true,
+                        autoGainControl: true
+                    }
+                });
+                
+                log('✅ Microphone access granted');
+                log('Audio tracks: ' + stream.getAudioTracks().length);
+                
+                // Stop the stream
+                stream.getTracks().forEach(track => track.stop());
+                log('✅ Microphone test completed');
+                
+            } catch (error) {
+                log('❌ Microphone error: ' + error.message);
+                if (error.name === 'NotAllowedError') {
+                    log('❌ Microphone permission denied');
+                } else if (error.name === 'NotFoundError') {
+                    log('❌ No microphone found');
+                }
+            }
+        });
+
+        log('Test page loaded. Click buttons to test connection and microphone.');
+    </script>
+</body>
+</html>

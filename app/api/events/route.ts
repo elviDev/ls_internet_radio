@@ -1,119 +1,90 @@
-import { NextRequest, NextResponse } from "next/server"
-import { PrismaClient } from "@prisma/client"
+import { NextResponse } from "next/server"
+import { prisma } from "@/lib/prisma"
 
-const prisma = new PrismaClient()
-
-export async function GET(request: NextRequest) {
+// GET /api/events - Get events for public display
+export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(request.url)
-    const page = parseInt(searchParams.get("page") || "1", 10)
-    const perPage = parseInt(searchParams.get("perPage") || "12", 10)
-    const category = searchParams.get("category")
-    const search = searchParams.get("search")
-    const featured = searchParams.get("featured") === "true"
-
-    const where: any = {
-      schedule: {
-        status: { not: "DRAFT" },
-        startTime: {
-          gte: new Date()
+    const { searchParams } = new URL(req.url)
+    const upcoming = searchParams.get("upcoming") === "true"
+    const limit = parseInt(searchParams.get("limit") || "10")
+    
+    const now = new Date()
+    const oneMonthFromNow = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000)
+    
+    // Get events through their associated schedules
+    const schedules = await prisma.schedule.findMany({
+      where: {
+        type: "EVENT",
+        startTime: upcoming ? {
+          gte: now,
+          lte: oneMonthFromNow
+        } : undefined,
+        status: {
+          in: ["SCHEDULED", "ACTIVE", "PUBLISHED"]
         }
-      }
-    }
-
-    if (category && category !== "all") {
-      where.eventType = category.toUpperCase().replace("-", "_")
-    }
-
-    if (search) {
-      where.OR = [
-        { schedule: { title: { contains: search, mode: "insensitive" } } },
-        { schedule: { description: { contains: search, mode: "insensitive" } } }
-      ]
-    }
-
-    const [events, total] = await Promise.all([
-      prisma.event.findMany({
-        where,
-        orderBy: { schedule: { startTime: "asc" } },
-        skip: (page - 1) * perPage,
-        take: perPage,
-        include: {
-          schedule: {
-            select: {
-              id: true,
-              title: true,
-              description: true,
-              startTime: true,
-              endTime: true,
-              creator: {
-                select: {
-                  id: true,
-                  firstName: true,
-                  lastName: true
-                }
-              }
-            }
-          },
-          organizerStaff: {
-            select: {
-              id: true,
-              firstName: true,
-              lastName: true
-            }
-          },
-          _count: {
-            select: {
-              registrations: true
-            }
+      },
+      include: {
+        event: true,
+        creator: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
+          }
+        },
+        assignee: {
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true
           }
         }
-      }),
-      prisma.event.count({ where })
-    ])
+      },
+      orderBy: upcoming 
+        ? { startTime: "asc" }
+        : { createdAt: "desc" },
+      take: limit
+    })
 
-    const transformedEvents = events.map(event => ({
-      id: event.id,
-      title: event.schedule.title,
-      description: event.schedule.description,
-      startTime: event.schedule.startTime,
-      endTime: event.schedule.endTime,
-      eventType: event.eventType,
-      location: event.location,
-      venue: event.venue,
-      address: event.address,
-      city: event.city,
-      state: event.state,
-      country: event.country,
-      isVirtual: event.isVirtual,
-      virtualLink: event.virtualLink,
-      isPaid: event.isPaid,
-      ticketPrice: event.ticketPrice,
-      currency: event.currency,
-      maxAttendees: event.maxAttendees,
-      currentAttendees: event._count.registrations,
-      requiresRSVP: event.requiresRSVP,
-      imageUrl: event.imageUrl,
-      bannerUrl: event.bannerUrl,
-      galleryUrls: event.galleryUrls,
-      contactEmail: event.contactEmail,
-      contactPhone: event.contactPhone,
-      contactPerson: event.contactPerson,
-      facebookEvent: event.facebookEvent,
-      twitterEvent: event.twitterEvent,
-      linkedinEvent: event.linkedinEvent,
-      organizer: event.organizerStaff,
-      isFeatured: event._count.registrations > 50
-    }))
+    // Transform the data for the frontend
+    const transformedEvents = schedules
+      .filter(schedule => schedule.event) // Only include schedules that have event data
+      .map(schedule => ({
+        id: schedule.event!.id,
+        scheduleId: schedule.id,
+        title: schedule.title,
+        description: schedule.description,
+        eventType: schedule.event!.eventType,
+        location: schedule.event!.location,
+        venue: schedule.event!.venue,
+        address: schedule.event!.address,
+        city: schedule.event!.city,
+        state: schedule.event!.state,
+        country: schedule.event!.country,
+        isVirtual: schedule.event!.isVirtual,
+        virtualLink: schedule.event!.virtualLink,
+        isPaid: schedule.event!.isPaid,
+        ticketPrice: schedule.event!.ticketPrice,
+        currency: schedule.event!.currency,
+        maxAttendees: schedule.event!.maxAttendees,
+        currentAttendees: schedule.event!.currentAttendees,
+        requiresRSVP: schedule.event!.requiresRSVP,
+        imageUrl: schedule.event!.imageUrl,
+        startTime: schedule.startTime,
+        endTime: schedule.endTime,
+        status: schedule.status,
+        organizer: schedule.creator ? {
+          id: schedule.creator.id,
+          name: `${schedule.creator.firstName} ${schedule.creator.lastName}`
+        } : null,
+        tags: schedule.tags,
+        createdAt: schedule.event!.createdAt,
+        updatedAt: schedule.event!.updatedAt
+      }))
 
     return NextResponse.json({
       events: transformedEvents,
-      pagination: {
-        page,
-        perPage,
-        total,
-        totalPages: Math.ceil(total / perPage)
-      }
+      count: transformedEvents.length
     })
   } catch (error) {
     console.error("Error fetching events:", error)
