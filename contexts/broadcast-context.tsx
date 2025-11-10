@@ -1,19 +1,35 @@
 "use client"
 
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react'
-import { AudioBroadcaster, AudioListener } from '@/lib/audio-bridge'
+import { UnifiedAudioSystem, UnifiedAudioListener } from '@/lib/unified-audio-system'
+import { RealtimeClient } from '@/lib/realtime-client'
+
+interface StreamQualityMetrics {
+  bitrate: number
+  latency: number
+  packetLoss: number
+  jitter: number
+}
+
+interface ReceiverQualityMetrics {
+  bufferHealth: number
+  audioDropouts: number
+  connectionQuality: 'excellent' | 'good' | 'fair' | 'poor'
+}
 
 interface BroadcastContextType {
   // Broadcaster (Studio) State
   isStreaming: boolean
   isBroadcaster: boolean
   audioLevel: number
+  streamQuality: StreamQualityMetrics | null
   startBroadcast: (broadcastId: string) => Promise<void>
   stopBroadcast: () => Promise<void>
   
   // Listener (Public) State  
   isListening: boolean
   isConnected: boolean
+  receiverQuality: ReceiverQualityMetrics | null
   joinBroadcast: (broadcastId: string) => Promise<void>
   leaveBroadcast: () => void
   
@@ -49,13 +65,16 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
   const [isStreaming, setIsStreaming] = useState(false)
   const [audioLevel, setAudioLevel] = useState(0)
   const [streamQuality, setStreamQuality] = useState<StreamQualityMetrics | null>(null)
-  const [audioStreamer, setAudioStreamer] = useState<AudioStreamer | null>(null)
+  const [audioSystem, setAudioSystem] = useState<UnifiedAudioSystem | null>(null)
   
   // Listener state
   const [isListening, setIsListening] = useState(false)
   const [isConnected, setIsConnected] = useState(false)
   const [receiverQuality, setReceiverQuality] = useState<ReceiverQualityMetrics | null>(null)
-  const [audioReceiver, setAudioReceiver] = useState<AudioReceiver | null>(null)
+  const [audioListener, setAudioListener] = useState<UnifiedAudioListener | null>(null)
+  
+  // Realtime client
+  const [realtimeClient, setRealtimeClient] = useState<RealtimeClient | null>(null)
   
   // Shared state
   const [volume, setVolumeState] = useState(80)
@@ -63,18 +82,26 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
   const [connectionState, setConnectionState] = useState<'disconnected' | 'connecting' | 'connected' | 'failed'>('disconnected')
   const [error, setError] = useState<string | null>(null)
   const [currentBroadcastId, setCurrentBroadcastId] = useState<string | null>(null)
-  const [signalingInterval, setSignalingInterval] = useState<NodeJS.Timeout | null>(null)
+
+  // Initialize realtime client
+  useEffect(() => {
+    const client = new RealtimeClient('http://localhost:3001')
+    setRealtimeClient(client)
+    
+    return () => {
+      client.disconnect()
+    }
+  }, [])
 
   // Audio level monitoring
   useEffect(() => {
     let interval: NodeJS.Timeout
 
-    if ((isStreaming && audioStreamer) || (isListening && audioReceiver)) {
+    if (audioSystem || audioListener) {
       interval = setInterval(() => {
-        if (isStreaming && audioStreamer) {
-          setAudioLevel(audioStreamer.getAudioLevel())
-        } else if (isListening && audioReceiver) {
-          setAudioLevel(audioReceiver.getAudioLevel())
+        if (audioSystem) {
+          const metrics = audioSystem.getMetrics()
+          setAudioLevel(metrics.inputLevel)
         }
       }, 100)
     }
@@ -82,78 +109,51 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
     return () => {
       if (interval) clearInterval(interval)
     }
-  }, [isStreaming, isListening, audioStreamer, audioReceiver])
+  }, [audioSystem, audioListener])
 
-  // Signaling message polling
+  // WebRTC signaling integration
   useEffect(() => {
-    if (currentBroadcastId && (isStreaming || isListening)) {
-      let lastMessageTimestamp = 0
-      
-      const pollSignalingMessages = async () => {
-        try {
-          const response = await fetch(
-            `/api/broadcasts/stream/signaling?broadcastId=${currentBroadcastId}&since=${lastMessageTimestamp}`
-          )
-          
-          if (response.ok) {
-            const data = await response.json()
-            
-            for (const message of data.messages) {
-              lastMessageTimestamp = Math.max(lastMessageTimestamp, message.timestamp)
-              
-              // Handle signaling messages
-              if (message.type === 'join-as-listener' && audioStreamer && isBroadcaster) {
-                // Create offer for new listener
-                const offer = await audioStreamer.createOffer(message.senderId)
-                await fetch(`/api/broadcasts/stream/signaling?broadcastId=${currentBroadcastId}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    type: 'offer',
-                    data: offer,
-                    targetId: message.senderId
-                  })
-                })
-              } else if (message.type === 'offer' && audioReceiver && !isBroadcaster) {
-                const answer = await audioReceiver.handleOffer(message.data)
-                await fetch(`/api/broadcasts/stream/signaling?broadcastId=${currentBroadcastId}`, {
-                  method: 'POST',
-                  headers: { 'Content-Type': 'application/json' },
-                  body: JSON.stringify({
-                    type: 'answer',
-                    data: answer,
-                    targetId: message.senderId
-                  })
-                })
-              } else if (message.type === 'answer' && audioStreamer && isBroadcaster) {
-                await audioStreamer.handleAnswer(message.senderId, message.data)
-              } else if (message.type === 'ice-candidate') {
-                if (audioReceiver && message.targetId === userId) {
-                  await audioReceiver.handleIceCandidate(message.data)
-                } else if (audioStreamer && isBroadcaster) {
-                  await audioStreamer.handleIceCandidate(message.senderId, message.data)
-                }
-              }
-            }
-          }
-        } catch (error) {
-          console.error('Error polling signaling messages:', error)
+    if (currentBroadcastId && realtimeClient) {
+      // Set up WebRTC signaling event handlers
+      realtimeClient.onBroadcasterReady((data) => {
+        console.log('Broadcaster ready:', data)
+        setConnectionState('connected')
+        setIsStreaming(true)
+      })
+
+      realtimeClient.onBroadcastInfo((info) => {
+        console.log('Broadcast info:', info)
+        setIsConnected(info.isLive)
+        if (info.isLive) {
+          setIsStreaming(true)
         }
-      }
+      })
+
+      realtimeClient.onListenerCount((data) => {
+        console.log('Listener count:', data.count)
+      })
+
+      realtimeClient.onBroadcastEnded((data) => {
+        console.log('Broadcast ended:', data.reason)
+        setIsStreaming(false)
+        setIsListening(false)
+        setConnectionState('disconnected')
+      })
       
-      const interval = setInterval(pollSignalingMessages, 1000) // Poll every second
-      setSignalingInterval(interval)
-      
-      return () => {
-        clearInterval(interval)
-        setSignalingInterval(null)
-      }
+      // Listen for server stats to get broadcast status
+      realtimeClient.onServerStats((stats) => {
+        console.log('Server stats received:', stats)
+        if (stats.activeBroadcasts > 0) {
+          setIsStreaming(true)
+          setConnectionState('connected')
+        }
+      })
     }
-  }, [currentBroadcastId, isStreaming, isListening, audioStreamer, audioReceiver, userId])
+  }, [currentBroadcastId, realtimeClient])
 
   // Broadcaster functions
   const startBroadcast = useCallback(async (broadcastId: string) => {
-    if (!isBroadcaster) {
+    if (!isBroadcaster || !realtimeClient) {
       throw new Error('Only broadcasters can start streaming')
     }
 
@@ -161,59 +161,41 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
       setConnectionState('connecting')
       setError(null)
       
-      // Initialize audio streamer
-      const streamer = new AudioStreamer({
-        sampleRate: 44100,
-        channelCount: 2,
-        bitRate: 128000,
-        echoCancellation: true,
-        noiseSuppression: true,
-        autoGainControl: true
+      // Initialize unified audio system
+      const system = new UnifiedAudioSystem({
+        broadcastId,
+        sampleRate: 48000,
+        channels: 2,
+        bitrate: 128000,
+        maxSources: 8
       })
 
       // Set up callbacks
-      streamer.onQualityUpdate = (listenerId: string, metrics: StreamQualityMetrics) => {
-        setStreamQuality(metrics)
+      system.onMetricsUpdate = (metrics) => {
+        setAudioLevel(metrics.inputLevel)
       }
 
-      streamer.sendSignalingMessage = async (message: any) => {
-        try {
-          await fetch(`/api/broadcasts/stream/signaling?broadcastId=${broadcastId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(message)
-          })
-        } catch (error) {
-          console.error('Failed to send signaling message:', error)
-        }
-      }
-
-      try {
-        await streamer.initializeAudio()
-        setAudioStreamer(streamer)
-      } catch (audioError) {
-        console.error('Audio initialization failed:', audioError)
-        throw audioError
-      }
+      await system.initialize()
+      setAudioSystem(system)
       
-      // Start the stream
-      streamer.startStreaming()
+      // Join as broadcaster via realtime client
+      realtimeClient.joinAsBroadcaster(broadcastId, {
+        username: 'Radio Host',
+        stationName: 'LS Radio'
+      })
+      
+      // Start the broadcast
+      await system.startBroadcast()
       setIsStreaming(true)
       setCurrentBroadcastId(broadcastId)
       setConnectionState('connected')
       
-      // Send join-as-host message to establish signaling
-      await fetch(`/api/broadcasts/stream/signaling?broadcastId=${broadcastId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'join-as-host' })
-      })
-
-      // Notify API that streaming has started
-      await fetch('/api/broadcasts/stream', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ broadcastId })
+      // Update stream quality metrics
+      setStreamQuality({
+        bitrate: 128,
+        latency: 150,
+        packetLoss: 0,
+        jitter: 5
       })
 
       console.log('Broadcast started successfully')
@@ -223,39 +205,30 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
       setConnectionState('failed')
       throw error
     }
-  }, [isBroadcaster])
+  }, [isBroadcaster, realtimeClient])
 
   const stopBroadcast = useCallback(async () => {
-    if (!isStreaming || !currentBroadcastId) return
+    if (!isStreaming || !audioSystem) return
 
     try {
-      // Stop audio streaming
-      if (audioStreamer) {
-        audioStreamer.stopStreaming()
-        setAudioStreamer(null)
-      }
-
+      audioSystem.stopBroadcast()
+      setAudioSystem(null)
       setIsStreaming(false)
       setConnectionState('disconnected')
       setAudioLevel(0)
-      setStreamQuality(null)
-
-      // Notify API that streaming has stopped
-      await fetch(`/api/broadcasts/stream?broadcastId=${currentBroadcastId}`, {
-        method: 'DELETE'
-      })
-
       setCurrentBroadcastId(null)
+      setStreamQuality(null)
+      
       console.log('Broadcast stopped successfully')
     } catch (error) {
       console.error('Failed to stop broadcast:', error)
       setError(error instanceof Error ? error.message : 'Failed to stop broadcast')
     }
-  }, [isStreaming, currentBroadcastId, audioStreamer])
+  }, [isStreaming, audioSystem])
 
   // Listener functions
   const joinBroadcast = useCallback(async (broadcastId: string) => {
-    if (isBroadcaster) {
+    if (isBroadcaster || !realtimeClient) {
       throw new Error('Broadcasters cannot join as listeners')
     }
 
@@ -263,72 +236,19 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
       setConnectionState('connecting')
       setError(null)
 
-      // Check if broadcast is live
-      const response = await fetch(`/api/broadcasts/stream?broadcastId=${broadcastId}`)
-      const broadcastInfo = await response.json()
-
-      if (!broadcastInfo.isLive) {
-        throw new Error('Broadcast is not currently live')
-      }
-
-      // Initialize audio receiver
-      const receiver = new AudioReceiver()
-
-      // Set up callbacks
-      receiver.onQualityUpdate = (metrics: ReceiverQualityMetrics) => {
-        setReceiverQuality(metrics)
-      }
-
-      receiver.onConnectionStateChange = (state: 'connected' | 'disconnected') => {
-        setIsConnected(state === 'connected')
-        setConnectionState(state === 'connected' ? 'connected' : 'disconnected')
-      }
-
-      receiver.onConnectionError = (error: string) => {
-        setError(error)
-        setConnectionState('failed')
-      }
-
-      receiver.onReconnectAttempt = () => {
-        setConnectionState('connecting')
-      }
-
-      receiver.sendSignalingMessage = async (message: any) => {
-        try {
-          await fetch(`/api/broadcasts/stream/signaling?broadcastId=${broadcastId}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(message)
-          })
-        } catch (error) {
-          console.error('Failed to send signaling message:', error)
-        }
-      }
-
-      try {
-        await receiver.initializeReceiver()
-        setAudioReceiver(receiver)
-      } catch (audioError) {
-        console.error('Audio receiver initialization failed:', audioError)
-        throw audioError
-      }
+      // Initialize audio listener
+      const listener = new UnifiedAudioListener(broadcastId)
+      await listener.startListening()
+      listener.setVolume(volume)
       
-      // Apply current volume settings
-      receiver.setVolume(volume)
-      receiver.mute(isMuted)
-
+      setAudioListener(listener)
       setIsListening(true)
+      setIsConnected(true)
       setCurrentBroadcastId(broadcastId)
+      setConnectionState('connected')
       
-      // Send join-as-listener message and create offer
-      await fetch(`/api/broadcasts/stream/signaling?broadcastId=${broadcastId}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ type: 'join-as-listener' })
-      })
-      
-      // Start playing
-      await receiver.play()
+      // Join broadcast via realtime client
+      realtimeClient.joinBroadcast(broadcastId)
 
       console.log('Joined broadcast successfully')
     } catch (error) {
@@ -337,22 +257,18 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
       setConnectionState('failed')
       throw error
     }
-  }, [isBroadcaster, volume, isMuted])
+  }, [isBroadcaster, realtimeClient, volume])
 
   const leaveBroadcast = useCallback(() => {
-    if (!isListening) return
+    if (!isListening || !audioListener) return
 
     try {
-      if (audioReceiver) {
-        audioReceiver.disconnect()
-        setAudioReceiver(null)
-      }
-
+      audioListener.stopListening()
+      setAudioListener(null)
       setIsListening(false)
       setIsConnected(false)
       setConnectionState('disconnected')
       setAudioLevel(0)
-      setReceiverQuality(null)
       setCurrentBroadcastId(null)
 
       console.log('Left broadcast successfully')
@@ -360,49 +276,35 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
       console.error('Failed to leave broadcast:', error)
       setError(error instanceof Error ? error.message : 'Failed to leave broadcast')
     }
-  }, [isListening, audioReceiver])
+  }, [isListening, audioListener])
 
   // Audio control functions
   const setVolume = useCallback((newVolume: number) => {
     setVolumeState(newVolume)
     
-    if (audioReceiver) {
-      audioReceiver.setVolume(newVolume)
+    if (audioListener) {
+      audioListener.setVolume(newVolume)
     }
-    
-    if (audioStreamer) {
-      audioStreamer.setGain(newVolume / 100)
-    }
-  }, [audioReceiver, audioStreamer])
+  }, [audioListener])
 
   const setMuted = useCallback((muted: boolean) => {
     setIsMuted(muted)
-    
-    if (audioReceiver) {
-      audioReceiver.mute(muted)
-    }
-  }, [audioReceiver])
+  }, [])
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (audioStreamer) {
-        audioStreamer.stopStreaming()
+      if (audioSystem) {
+        audioSystem.cleanup()
       }
-      if (audioReceiver) {
-        audioReceiver.disconnect()
+      if (audioListener) {
+        audioListener.stopListening()
       }
-      if (signalingInterval) {
-        clearInterval(signalingInterval)
-      }
-      if (currentBroadcastId) {
-        // Leave broadcast on cleanup
-        fetch(`/api/broadcasts/stream/signaling?broadcastId=${currentBroadcastId}`, {
-          method: 'DELETE'
-        }).catch(console.error)
+      if (realtimeClient) {
+        realtimeClient.disconnect()
       }
     }
-  }, [audioStreamer, audioReceiver, signalingInterval, currentBroadcastId])
+  }, [audioSystem, audioListener, realtimeClient])
 
   const contextValue: BroadcastContextType = {
     // Broadcaster state

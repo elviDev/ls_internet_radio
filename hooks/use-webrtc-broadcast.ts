@@ -20,8 +20,8 @@ export function useWebRTCBroadcast(broadcastId: string) {
       setIsConnected(true)
     })
 
-    realtimeClient.current.onListenerCount((count) => {
-      setListenerCount(count)
+    realtimeClient.current.onListenerCount((data) => {
+      setListenerCount(data.count)
     })
 
     return () => {

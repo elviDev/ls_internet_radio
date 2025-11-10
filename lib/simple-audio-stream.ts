@@ -10,7 +10,7 @@ export class SimpleBroadcaster {
     this.stream = await navigator.mediaDevices.getUserMedia({ audio: true })
     
     // Connect to server
-    this.socket = io()
+    this.socket = io('http://localhost:3001')
     this.socket.emit('join-as-broadcaster', broadcastId)
     
     // Start recording and streaming
@@ -41,7 +41,7 @@ export class SimpleListener {
 
   async startListening(broadcastId: string) {
     this.audioContext = new AudioContext()
-    this.socket = io()
+    this.socket = io('http://localhost:3001')
     
     this.socket.emit('join-broadcast', broadcastId)
     

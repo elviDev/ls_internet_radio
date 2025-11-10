@@ -24,13 +24,114 @@ import { AudioMetrics } from '@/lib/unified-audio-system'
 interface UnifiedStudioInterfaceProps {
   broadcastId: string
   stationName: string
+  onGoLive?: () => Promise<void>
+  onEndBroadcast?: () => Promise<void>
+  isLive?: boolean
+  broadcast?: {
+    hostUser: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+    }
+    staff: Array<{
+      id: string
+      role: string
+      user: {
+        id: string
+        firstName: string
+        lastName: string
+        username: string
+        email: string
+      }
+      isActive: boolean
+    }>
+    guests: Array<{
+      id: string
+      name: string
+      title?: string
+      role: string
+    }>
+  }
 }
 
-export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStudioInterfaceProps) {
+export function UnifiedStudioInterface({ broadcastId, stationName, broadcast, onGoLive, onEndBroadcast, isLive: propIsLive }: UnifiedStudioInterfaceProps) {
   const [studioController, setStudioController] = useState<StudioController | null>(null)
-  const [isLive, setIsLive] = useState(false)
+  const [isLive, setIsLive] = useState(propIsLive || false)
+  
+  // Sync with prop changes
+  useEffect(() => {
+    if (propIsLive !== undefined) {
+      setIsLive(propIsLive)
+    }
+  }, [propIsLive])
   const [hosts, setHosts] = useState<HostConfig[]>([])
   const [guests, setGuests] = useState<GuestConfig[]>([])
+  const [mutedUsers, setMutedUsers] = useState<Set<string>>(new Set())
+  
+  // Initialize hosts and guests from broadcast data immediately
+  useEffect(() => {
+    if (broadcast) {
+      // Add main host
+      const mainHost: HostConfig = {
+        id: broadcast.hostUser.id,
+        name: `${broadcast.hostUser.firstName} ${broadcast.hostUser.lastName}`,
+        role: 'main',
+        volume: 1.0
+      }
+      
+      // Only add staff with HOST or CO_HOST roles as hosts
+      const staffHosts: HostConfig[] = broadcast.staff
+        .filter(staff => staff.role === 'HOST' || staff.role === 'CO_HOST')
+        .map(staff => ({
+          id: staff.user.id,
+          name: `${staff.user.firstName} ${staff.user.lastName}`,
+          role: 'co-host',
+          volume: 0.9
+        }))
+      
+      // Add actual guests from broadcast
+      const broadcastGuests: GuestConfig[] = broadcast.guests.map(guest => ({
+        id: guest.id,
+        name: guest.name,
+        type: 'guest',
+        volume: 0.8
+      }))
+      
+      const allHosts = [mainHost, ...staffHosts]
+      
+      setHosts(allHosts)
+      setGuests(broadcastGuests)
+      
+      console.log('🎙️ Loaded hosts:', allHosts.length, 'guests:', broadcastGuests.length)
+    }
+  }, [broadcast])
+  
+  // Add hosts to StudioController when it becomes available
+  useEffect(() => {
+    if (studioController && hosts.length > 0) {
+      hosts.forEach(async (host) => {
+        try {
+          await studioController.addHost(host)
+        } catch (error) {
+          console.error(`Failed to add host ${host.name}:`, error)
+        }
+      })
+    }
+  }, [studioController, hosts])
+  
+  // Add guests to StudioController when it becomes available
+  useEffect(() => {
+    if (studioController && guests.length > 0) {
+      guests.forEach(async (guest) => {
+        try {
+          await studioController.addGuest(guest)
+        } catch (error) {
+          console.error(`Failed to add guest ${guest.name}:`, error)
+        }
+      })
+    }
+  }, [studioController, guests])
   const [mainMicVolume, setMainMicVolume] = useState(100)
   const [guestMicVolume, setGuestMicVolume] = useState(80)
   const [audioMetrics, setAudioMetrics] = useState<AudioMetrics>({
@@ -57,7 +158,9 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
 
         // Set up event handlers
         controller.onBroadcastStateChange = (state) => {
-          setIsLive(state === 'live')
+          const newIsLive = state === 'live'
+          setIsLive(newIsLive)
+          console.log('🎙️ Studio broadcast state changed:', newIsLive)
         }
 
         controller.onAudioMetrics = (metrics) => {
@@ -87,88 +190,29 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
     }
   }, [broadcastId, stationName])
 
-  // Add main host
-  const addMainHost = useCallback(async () => {
-    if (!studioController) return
 
-    try {
-      const hostConfig: HostConfig = {
-        id: 'main-host',
-        name: 'Main Host',
-        role: 'main',
-        volume: 1.0
-      }
-
-      await studioController.addHost(hostConfig)
-      setHosts(prev => [...prev, hostConfig])
-    } catch (error) {
-      console.error('Failed to add main host:', error)
-      if (error instanceof Error) {
-        alert(error.message)
-      }
-    }
-  }, [studioController])
-
-  // Add co-host
-  const addCoHost = useCallback(async () => {
-    if (!studioController) return
-
-    try {
-      const hostConfig: HostConfig = {
-        id: `co-host-${Date.now()}`,
-        name: 'Co-Host',
-        role: 'co-host',
-        volume: 0.9
-      }
-
-      await studioController.addHost(hostConfig)
-      setHosts(prev => [...prev, hostConfig])
-    } catch (error) {
-      console.error('Failed to add co-host:', error)
-      if (error instanceof Error) {
-        alert(error.message)
-      }
-    }
-  }, [studioController])
-
-  // Add guest
-  const addGuest = useCallback(async () => {
-    if (!studioController) return
-
-    try {
-      const guestConfig: GuestConfig = {
-        id: `guest-${Date.now()}`,
-        name: 'Guest',
-        type: 'guest',
-        volume: 0.8
-      }
-
-      await studioController.addGuest(guestConfig)
-      setGuests(prev => [...prev, guestConfig])
-    } catch (error) {
-      console.error('Failed to add guest:', error)
-      if (error instanceof Error) {
-        alert(error.message)
-      }
-    }
-  }, [studioController])
 
   // Start broadcast
   const startBroadcast = useCallback(async () => {
-    if (!studioController) return
-
-    try {
-      await studioController.startBroadcast()
-    } catch (error) {
-      console.error('Failed to start broadcast:', error)
+    if (onGoLive) {
+      await onGoLive()
+    } else if (studioController) {
+      try {
+        await studioController.startBroadcast()
+      } catch (error) {
+        console.error('Failed to start broadcast:', error)
+      }
     }
-  }, [studioController])
+  }, [studioController, onGoLive])
 
   // Stop broadcast
-  const stopBroadcast = useCallback(() => {
-    if (!studioController) return
-    studioController.stopBroadcast()
-  }, [studioController])
+  const stopBroadcast = useCallback(async () => {
+    if (onEndBroadcast) {
+      await onEndBroadcast()
+    } else if (studioController) {
+      studioController.stopBroadcast()
+    }
+  }, [studioController, onEndBroadcast])
 
   // Handle main mic volume change
   const handleMainMicVolumeChange = useCallback((value: number[]) => {
@@ -189,10 +233,22 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
   }, [studioController])
 
   // Mute/unmute source
-  const toggleMute = useCallback((sourceId: string, currentlyMuted: boolean) => {
-    if (!studioController) return
-    studioController.muteSource(sourceId, !currentlyMuted)
-  }, [studioController])
+  const toggleMute = useCallback((sourceId: string) => {
+    const isMuted = mutedUsers.has(sourceId)
+    if (isMuted) {
+      setMutedUsers(prev => {
+        const newSet = new Set(prev)
+        newSet.delete(sourceId)
+        return newSet
+      })
+    } else {
+      setMutedUsers(prev => new Set(prev).add(sourceId))
+    }
+    
+    if (studioController) {
+      studioController.muteSource(sourceId, !isMuted)
+    }
+  }, [studioController, mutedUsers])
 
   // Accept call
   const acceptCall = useCallback(async (callData: any) => {
@@ -249,7 +305,7 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
         <CardContent>
           <div className="flex space-x-2">
             {!isLive ? (
-              <Button onClick={startBroadcast} disabled={hosts.length === 0}>
+              <Button onClick={startBroadcast}>
                 <Radio className="h-4 w-4 mr-2" />
                 Go Live
               </Button>
@@ -340,31 +396,14 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
       {/* Hosts Section */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Hosts ({hosts.length}/4)</CardTitle>
-            <div className="space-x-2">
-              {hosts.length === 0 && (
-                <Button onClick={addMainHost} size="sm">
-                  <Mic className="h-4 w-4 mr-2" />
-                  Add Main Host
-                </Button>
-              )}
-              {hosts.length > 0 && hosts.length < 4 && (
-                <Button onClick={addCoHost} size="sm" variant="outline">
-                  <Mic className="h-4 w-4 mr-2" />
-                  Add Co-Host
-                </Button>
-              )}
-            </div>
-          </div>
+          <CardTitle>Hosts ({hosts.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {hosts.length === 0 ? (
             <div className="text-center py-4">
               <p className="text-muted-foreground mb-3">
-                No hosts added. Add a main host to start broadcasting.
+                {broadcast ? 'Loading broadcast team...' : 'No hosts configured for this broadcast.'}
               </p>
-
             </div>
           ) : (
             <div className="space-y-3">
@@ -383,10 +422,10 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
                     </Badge>
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => toggleMute(host.id, false)}
+                      variant={mutedUsers.has(host.id) ? "destructive" : "outline"}
+                      onClick={() => toggleMute(host.id)}
                     >
-                      <Mic className="h-4 w-4" />
+                      {mutedUsers.has(host.id) ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>
@@ -399,40 +438,33 @@ export function UnifiedStudioInterface({ broadcastId, stationName }: UnifiedStud
       {/* Guests Section */}
       <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <CardTitle>Guests & Callers ({guests.length}/6)</CardTitle>
-            <Button onClick={addGuest} size="sm" variant="outline" disabled={guests.length >= 6}>
-              <Users className="h-4 w-4 mr-2" />
-              Add Guest
-            </Button>
-          </div>
+          <CardTitle>Guests ({guests.length})</CardTitle>
         </CardHeader>
         <CardContent>
           {guests.length === 0 ? (
             <p className="text-muted-foreground text-center py-4">
-              No guests or callers connected.
+              No guests assigned to this broadcast.
             </p>
           ) : (
             <div className="space-y-3">
               {guests.map((guest) => (
                 <div key={guest.id} className="flex items-center justify-between p-3 border rounded-lg">
                   <div className="flex items-center space-x-3">
-                    {guest.type === 'caller' ? <Phone className="h-4 w-4" /> : <Users className="h-4 w-4" />}
+                    <Users className="h-4 w-4" />
                     <div>
                       <p className="font-medium">{guest.name}</p>
-                      <p className="text-sm text-muted-foreground capitalize">{guest.type}</p>
+                      <p className="text-sm text-muted-foreground">Guest</p>
                     </div>
                   </div>
                   <div className="flex items-center space-x-2">
-                    <Badge variant="outline">
-                      {guest.type === 'caller' ? 'Caller' : 'Guest'}
-                    </Badge>
+                    <Badge variant="outline">Guest</Badge>
                     <Button
                       size="sm"
-                      variant="outline"
-                      onClick={() => toggleMute(guest.id, false)}
+                      variant={mutedUsers.has(guest.id) ? "destructive" : "outline"}
+                      onClick={() => toggleMute(guest.id)}
+                      title={mutedUsers.has(guest.id) ? "Unmute guest" : "Mute guest"}
                     >
-                      <Mic className="h-4 w-4" />
+                      {mutedUsers.has(guest.id) ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
                     </Button>
                   </div>
                 </div>

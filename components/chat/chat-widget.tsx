@@ -40,13 +40,15 @@ interface ChatWidgetProps {
     avatar?: string
     role?: 'listener' | 'host' | 'moderator' | 'admin'
   }
+  isLive?: boolean
   className?: string
   position?: 'bottom-right' | 'bottom-left' | 'top-right' | 'top-left'
 }
 
 export function ChatWidget({ 
   broadcastId, 
-  currentUser, 
+  currentUser,
+  isLive = false,
   className,
   position = 'bottom-right' 
 }: ChatWidgetProps) {
@@ -77,30 +79,38 @@ export function ChatWidget({
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }, [state.messages])
 
-  // Mock chat functionality for now (no Socket.IO server needed)
+  const hasJoinedRef = useRef(false)
+
+  // Set broadcast live status
   useEffect(() => {
-    // Simulate connection
-    const timer = setTimeout(() => {
-      // Mock some initial messages
-      const mockMessages = [
-        {
-          id: '1',
-          content: 'Welcome to the live chat!',
-          username: 'System',
-          messageType: 'system',
-          timestamp: new Date(),
-          userId: 'system',
-          broadcastId: broadcastId || 'live',
-          userAvatar: '',
-          likes: 0,
-          isLiked: false
-        }
-      ]
-      // You can add mock messages to state here if needed
-    }, 1000)
-    
-    return () => clearTimeout(timer)
-  }, [broadcastId, currentUser])
+    if (state.socket) {
+      state.socket.emit('set-broadcast-status', { broadcastId, isLive })
+    }
+  }, [broadcastId, isLive, state.socket])
+
+  // Join broadcast when component mounts
+  useEffect(() => {
+    console.log('🎯 ChatWidget useEffect:', { broadcastId, currentUser, isConnected: state.isConnected, hasJoined: hasJoinedRef.current, isLive })
+    if (broadcastId && currentUser && state.isConnected && !hasJoinedRef.current) {
+      console.log('🎯 ChatWidget joining broadcast')
+      hasJoinedRef.current = true
+      joinBroadcast(broadcastId, {
+        id: currentUser.id,
+        username: currentUser.username,
+        avatar: currentUser.avatar,
+        role: currentUser.role || 'listener',
+        isOnline: true,
+        isTyping: false,
+        lastSeen: new Date(),
+        messageCount: 0
+      })
+    }
+  }, [broadcastId, currentUser, state.isConnected])
+
+  // Reset join flag when broadcast or user changes
+  useEffect(() => {
+    hasJoinedRef.current = false
+  }, [broadcastId, currentUser?.id])
 
   // Clear unread when chat is opened
   useEffect(() => {
@@ -110,10 +120,10 @@ export function ChatWidget({
   }, [state.isChatOpen])
 
   const handleSendMessage = () => {
-    if (!newMessage.trim()) return
+    if (!newMessage.trim() || !state.isConnected) return
 
-    // Mock message sending for now
-    console.log('Mock message sent:', newMessage.trim())
+    console.log('🎯 ChatWidget sending message:', newMessage.trim())
+    sendMessage(newMessage.trim(), 'user', replyTo || undefined)
     setNewMessage('')
     setReplyTo(null)
     setIsTyping(false)
@@ -332,7 +342,15 @@ export function ChatWidget({
                       </div>
                     )}
                     
-                    {currentBroadcastMessages.length === 0 && state.isConnected && (
+                    {state.isConnected && !state.isBroadcastLive && (
+                      <div className="text-center py-4">
+                        <MessageCircle className="h-6 w-6 mx-auto mb-2 text-gray-400" />
+                        <p className="text-sm text-gray-500">No live broadcast</p>
+                        <p className="text-xs text-gray-400">Chat will be available when a broadcast starts</p>
+                      </div>
+                    )}
+                    
+                    {currentBroadcastMessages.length === 0 && state.isConnected && state.isBroadcastLive && (
                       <div className="text-center py-8 text-gray-500">
                         <MessageCircle className="h-8 w-8 mx-auto mb-2 opacity-50" />
                         <p className="text-sm">No messages yet</p>
@@ -489,20 +507,22 @@ export function ChatWidget({
                     <Input
                       ref={inputRef}
                       placeholder={
-                        state.isConnected 
-                          ? "Type a message..." 
-                          : "Connecting..."
+                        !state.isConnected 
+                          ? "Connecting..." 
+                          : !state.isBroadcastLive
+                          ? "Chat available during live broadcasts"
+                          : "Type a message..."
                       }
                       value={newMessage}
                       onChange={(e) => handleInputChange(e.target.value)}
                       onKeyPress={handleKeyPress}
-                      disabled={!state.isConnected}
+                      disabled={!state.isConnected || !state.isBroadcastLive}
                       maxLength={state.chatSettings.maxMessageLength}
                       className="flex-1"
                     />
                     <Button
                       onClick={handleSendMessage}
-                      disabled={!newMessage.trim() || !state.isConnected}
+                      disabled={!newMessage.trim() || !state.isConnected || !state.isBroadcastLive}
                       size="sm"
                     >
                       <Send className="h-4 w-4" />

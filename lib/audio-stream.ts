@@ -6,9 +6,9 @@ import { UnifiedAudioSystem, createAudioSystem } from './unified-audio-system'
 // Legacy AudioStreamManager - redirects to UnifiedAudioSystem
 export class AudioStreamManager {
   private unifiedSystem: UnifiedAudioSystem | null = null
+  private audioContext: AudioContext | null = null
   private isRecording = false
   private listeners: ((data: Float32Array) => void)[] = []
-
   async initialize(): Promise<void> {
     console.warn('⚠️ AudioStreamManager is deprecated. Use UnifiedAudioSystem instead.')
     
@@ -18,6 +18,9 @@ export class AudioStreamManager {
       await this.unifiedSystem.initialize()
       
       console.log('✅ Legacy audio stream initialized via UnifiedAudioSystem')
+
+      // Create audio context for legacy effects/listening
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
     } catch (error) {
       console.error('Failed to initialize legacy audio stream:', error)
       throw error
@@ -109,8 +112,44 @@ export class AudioStreamManager {
   applyEffect(type: 'reverb' | 'echo' | 'compressor', intensity: number): void {
     if (!this.audioContext) return
 
-    // Placeholder for audio effects
-    console.log(`Applied ${type} effect with intensity ${intensity}`)
+    switch (type) {
+      case 'reverb': {
+        // simple reverb using ConvolverNode with a small impulse
+        const convolver = this.audioContext.createConvolver()
+        const rate = this.audioContext.sampleRate
+        const length = rate * 0.5
+        const impulse = this.audioContext.createBuffer(2, length, rate)
+        for (let ch = 0; ch < 2; ch++) {
+          const channelData = impulse.getChannelData(ch)
+          for (let i = 0; i < length; i++) {
+            channelData[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, intensity)
+          }
+        }
+        convolver.buffer = impulse
+        convolver.connect(this.audioContext.destination)
+        break
+      }
+      case 'echo': {
+        const delay = this.audioContext.createDelay()
+        const feedback = this.audioContext.createGain()
+        delay.delayTime.value = Math.min(1, Math.max(0, intensity * 0.5))
+        feedback.gain.value = 0.4
+        delay.connect(feedback)
+        feedback.connect(delay)
+        delay.connect(this.audioContext.destination)
+        break
+      }
+      case 'compressor': {
+        const comp = this.audioContext.createDynamicsCompressor()
+        comp.threshold.value = -24 * intensity
+        comp.knee.value = 30
+        comp.ratio.value = 12
+        comp.attack.value = 0.003
+        comp.release.value = 0.25
+        comp.connect(this.audioContext.destination)
+        break
+      }
+    }
   }
 
   // Cleanup
@@ -120,6 +159,15 @@ export class AudioStreamManager {
     if (this.unifiedSystem) {
       this.unifiedSystem.cleanup()
       this.unifiedSystem = null
+    }
+
+    if (this.audioContext) {
+      try {
+        this.audioContext.close()
+      } catch (e) {
+        console.warn('Failed to close audio context', e)
+      }
+      this.audioContext = null
     }
 
     this.listeners = []

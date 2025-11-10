@@ -15,17 +15,7 @@ import {
   Maximize2,
   Users
 } from "lucide-react"
-import { io, Socket } from "socket.io-client"
-
-interface ChatMessage {
-  id: string
-  message: string
-  username: string
-  timestamp: Date
-  type: 'user' | 'announcement' | 'system'
-  userId?: string
-  broadcastId?: string
-}
+import { useChat } from "@/contexts/chat-context"
 
 interface FloatingChatProps {
   broadcastId: string
@@ -36,58 +26,34 @@ interface FloatingChatProps {
 export function FloatingChat({ broadcastId, username = "Anonymous", userId }: FloatingChatProps) {
   const [isOpen, setIsOpen] = useState(false)
   const [isMinimized, setIsMinimized] = useState(false)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
   const [newMessage, setNewMessage] = useState("")
-  const [isConnected, setIsConnected] = useState(false)
-  const [onlineCount, setOnlineCount] = useState(0)
-
-  const socketRef = useRef<Socket | null>(null)
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  
+  const { state, sendMessage: sendChatMessage, joinBroadcast } = useChat()
 
   useEffect(() => {
-    if (!broadcastId) return
-
-    const socket = io(process.env.NEXT_PUBLIC_WS_URL || window.location.origin)
-    socketRef.current = socket
-
-    socket.on('connect', () => {
-      setIsConnected(true)
-      socket.emit('join-broadcast', broadcastId, {
+    console.log('🤖 FloatingChat useEffect:', { broadcastId, username, userId, isConnected: state.isConnected })
+    if (broadcastId && username && userId) {
+      console.log('🤖 FloatingChat joining broadcast')
+      joinBroadcast(broadcastId, {
+        id: userId,
         username,
-        userId,
-        location: { city: 'Unknown', country: 'Unknown', countryCode: 'XX' },
-        device: 'desktop',
-        browser: 'Chrome'
+        role: 'listener',
+        isOnline: true,
+        isTyping: false,
+        lastSeen: new Date(),
+        messageCount: 0
       })
-    })
-
-    socket.on('disconnect', () => setIsConnected(false))
-    socket.on('new-chat-message', (message: ChatMessage) => {
-      setMessages(prev => [...prev, message])
-    })
-    socket.on('listener-count-update', (data: { count: number }) => {
-      setOnlineCount(data.count)
-    })
-
-    return () => socket.disconnect()
-  }, [broadcastId, username, userId])
+    }
+  }, [broadcastId, username, userId, joinBroadcast])
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [messages])
+  }, [state.messages])
 
   const sendMessage = () => {
-    if (!newMessage.trim() || !socketRef.current || !isConnected) return
-
-    const message = {
-      message: newMessage.trim(),
-      username,
-      type: 'user',
-      userId,
-      broadcastId
-    }
-
-    socketRef.current.emit('chat-message', message)
+    if (!newMessage.trim() || !state.isConnected) return
+    sendChatMessage(newMessage.trim())
     setNewMessage("")
   }
 
@@ -119,7 +85,7 @@ export function FloatingChat({ broadcastId, username = "Anonymous", userId }: Fl
               <span>Live Chat</span>
               <Badge variant="secondary" className="text-xs">
                 <Users className="h-3 w-3 mr-1" />
-                {onlineCount}
+                {state.users.length}
               </Badge>
             </div>
             <div className="flex items-center gap-1">
@@ -147,7 +113,8 @@ export function FloatingChat({ broadcastId, username = "Anonymous", userId }: Fl
           <CardContent className="p-0 flex flex-col h-80">
             <ScrollArea className="flex-1 p-3">
               <div className="space-y-3">
-                {messages.map((message) => (
+                {console.log('🤖 FloatingChat rendering messages:', state.messages.length, state.messages)}
+                {state.messages.map((message) => (
                   <div key={message.id} className="rounded-lg p-2">
                     <div className="flex items-start gap-2">
                       <Avatar className="h-6 w-6">
@@ -160,7 +127,7 @@ export function FloatingChat({ broadcastId, username = "Anonymous", userId }: Fl
                           <span className="font-medium text-xs">{message.username}</span>
                           <span className="text-xs text-gray-500">{formatTime(message.timestamp)}</span>
                         </div>
-                        <p className="text-sm break-words">{message.message}</p>
+                        <p className="text-sm break-words">{message.content}</p>
                       </div>
                     </div>
                   </div>
@@ -176,12 +143,12 @@ export function FloatingChat({ broadcastId, username = "Anonymous", userId }: Fl
                   onChange={(e) => setNewMessage(e.target.value)}
                   onKeyPress={(e) => e.key === 'Enter' && sendMessage()}
                   placeholder="Type your message..."
-                  disabled={!isConnected}
+                  disabled={!state.isConnected}
                   className="flex-1 text-sm"
                 />
                 <Button
                   onClick={sendMessage}
-                  disabled={!newMessage.trim() || !isConnected}
+                  disabled={!newMessage.trim() || !state.isConnected}
                   size="icon"
                 >
                   <Send className="h-4 w-4" />

@@ -23,6 +23,7 @@ export interface ChatMessage {
   emojis: { [emoji: string]: number }
   isModerated: boolean
   moderationReason?: string
+  isEdited?: boolean
 }
 
 export interface ChatUser {
@@ -55,6 +56,12 @@ interface ChatState {
   currentUser: ChatUser | null
   bannedUsers: Set<string>
   mutedUsers: Set<string>
+  isBroadcastLive: boolean
+  broadcastInfo: {
+    id: string | null
+    title: string | null
+    startTime: Date | null
+  }
   chatSettings: {
     slowMode: number
     autoModeration: boolean
@@ -67,6 +74,8 @@ type ChatAction =
   | { type: 'SET_CONNECTED'; payload: boolean }
   | { type: 'SET_CURRENT_BROADCAST'; payload: string }
   | { type: 'SET_CURRENT_USER'; payload: ChatUser }
+  | { type: 'SET_BROADCAST_LIVE'; payload: boolean }
+  | { type: 'SET_BROADCAST_INFO'; payload: { id: string; title: string; startTime: Date } }
   | { type: 'ADD_MESSAGE'; payload: ChatMessage }
   | { type: 'UPDATE_MESSAGE'; payload: { id: string; updates: Partial<ChatMessage> } }
   | { type: 'DELETE_MESSAGE'; payload: string }
@@ -98,6 +107,12 @@ const initialState: ChatState = {
   currentUser: null,
   bannedUsers: new Set(),
   mutedUsers: new Set(),
+  isBroadcastLive: false,
+  broadcastInfo: {
+    id: null,
+    title: null,
+    startTime: null
+  },
   chatSettings: {
     slowMode: 0,
     autoModeration: true,
@@ -122,6 +137,16 @@ function chatReducer(state: ChatState, action: ChatAction): ChatState {
     
     case 'SET_CURRENT_USER':
       return { ...state, currentUser: action.payload }
+    
+    case 'SET_BROADCAST_LIVE':
+      return { ...state, isBroadcastLive: action.payload }
+    
+    case 'SET_BROADCAST_INFO':
+      return { 
+        ...state, 
+        broadcastInfo: action.payload,
+        isBroadcastLive: true
+      }
     
     case 'ADD_MESSAGE':
       const newMessage = action.payload
@@ -268,8 +293,11 @@ interface ChatContextType {
   moderateMessage: (messageId: string, action: 'delete' | 'pin' | 'highlight') => void
   moderateUser: (userId: string, action: 'ban' | 'unban' | 'mute' | 'unmute' | 'timeout') => void
   likeMessage: (messageId: string) => void
+  editMessage: (messageId: string, newContent: string) => void
+  deleteMessage: (messageId: string) => void
   toggleChat: () => void
   minimizeChat: () => void
+  
   maximizeChat: () => void
   clearUnread: () => void
   updateSettings: (settings: Partial<ChatState['chatSettings']>) => void
@@ -284,11 +312,14 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
   // Initialize WebSocket connection
   useEffect(() => {
-    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || window.location.origin
+    const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'http://localhost:3001'
     const socket = io(wsUrl, {
       transports: ['websocket', 'polling'],
-      upgrade: true,
-      rememberUpgrade: true
+      autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 20000
     })
     
     socketRef.current = socket
@@ -298,33 +329,40 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       console.log('🔗 Chat connected to server')
     })
 
-    socket.on('disconnect', () => {
+    socket.on('disconnect', (reason) => {
       dispatch({ type: 'SET_CONNECTED', payload: false })
-      console.log('❌ Chat disconnected from server')
+      console.log(`❌ Chat disconnected from server: ${reason}`)
     })
 
-    socket.on('new-chat-message', (data: any) => {
+    socket.on('connect_error', (error) => {
+      console.error('🚨 Chat connection error:', error)
+      dispatch({ type: 'SET_CONNECTED', payload: false })
+    })
+
+    socket.on('new-message', (data: any) => {
+      console.log('📨 Frontend received new-message:', data)
       const message: ChatMessage = {
         id: data.id || Date.now().toString(),
         broadcastId: data.broadcastId,
         userId: data.userId,
         username: data.username,
         userAvatar: data.userAvatar,
-        content: data.message || data.content,
-        messageType: data.type || data.messageType || 'user',
+        content: data.content,
+        messageType: data.messageType || 'user',
         timestamp: new Date(data.timestamp || Date.now()),
         likes: data.likes || 0,
         dislikes: data.dislikes || 0,
         isLiked: false,
         isDisliked: false,
         isPinned: data.isPinned || false,
-        isHighlighted: data.isHighlighted || data.type === 'announcement',
+        isHighlighted: data.isHighlighted || data.messageType === 'announcement',
         replyTo: data.replyTo,
         emojis: data.emojis || {},
         isModerated: data.isModerated || false,
         moderationReason: data.moderationReason
       }
       
+      console.log('💬 Adding message to state:', message)
       dispatch({ type: 'ADD_MESSAGE', payload: message })
       
       // Show toast for announcements
@@ -333,22 +371,46 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
+    socket.on('message-edited', (data: any) => {
+      dispatch({ 
+        type: 'UPDATE_MESSAGE', 
+        payload: { 
+          id: data.messageId, 
+          updates: { content: data.newContent, isEdited: true } 
+        } 
+      })
+    })
+
+    socket.on('message-deleted', (data: any) => {
+      dispatch({ type: 'DELETE_MESSAGE', payload: data.messageId })
+    })
+
+    socket.on('message-updated', (data: any) => {
+      dispatch({ 
+        type: 'UPDATE_MESSAGE', 
+        payload: { 
+          id: data.messageId, 
+          updates: data.updates 
+        } 
+      })
+    })
+
     socket.on('user-joined', (data: any) => {
       const user: ChatUser = {
-        id: data.userId,
-        username: data.username,
-        avatar: data.avatar,
-        role: data.role || 'listener',
+        id: data.user.id,
+        username: data.user.username,
+        avatar: data.user.avatar,
+        role: data.user.role || 'listener',
         isOnline: true,
         isTyping: false,
         lastSeen: new Date(),
-        messageCount: data.messageCount || 0
+        messageCount: 0
       }
       dispatch({ type: 'ADD_USER', payload: user })
     })
 
     socket.on('user-left', (data: any) => {
-      dispatch({ type: 'REMOVE_USER', payload: data.userId })
+      dispatch({ type: 'REMOVE_USER', payload: data.user.id })
     })
 
     socket.on('user-typing', (data: any) => {
@@ -371,19 +433,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       dispatch({ type: 'CLEAR_TYPING', payload: data.userId })
     })
 
-    socket.on('message-updated', (data: any) => {
-      dispatch({ 
-        type: 'UPDATE_MESSAGE', 
-        payload: { 
-          id: data.messageId, 
-          updates: data.updates 
-        } 
-      })
-    })
 
-    socket.on('message-deleted', (data: any) => {
-      dispatch({ type: 'DELETE_MESSAGE', payload: data.messageId })
-    })
 
     socket.on('user-moderated', (data: any) => {
       if (data.action === 'ban') {
@@ -393,12 +443,28 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       }
     })
 
+    socket.on('broadcast-started', (data: any) => {
+      console.log('📻 Broadcast started:', data)
+      dispatch({ type: 'SET_BROADCAST_LIVE', payload: true })
+    })
+
+    socket.on('broadcast-ended', (data: any) => {
+      console.log('📻 Broadcast ended:', data)
+      dispatch({ type: 'SET_BROADCAST_LIVE', payload: false })
+    })
+    
+    socket.on('broadcaster-ready', (data: any) => {
+      console.log('📻 Broadcaster ready:', data)
+      dispatch({ type: 'SET_BROADCAST_LIVE', payload: true })
+    })
+
     socket.on('listener-count-update', (data: any) => {
-      // Update user count in UI
-      console.log('👥 Listener count:', data.count)
+        console.log('👥 Listener count:', data.count)
     })
 
     return () => {
+      console.log('🧹 Cleaning up chat socket connection')
+      socket.removeAllListeners()
       socket.disconnect()
     }
   }, [])
@@ -423,6 +489,11 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       return
     }
 
+    if (!state.isBroadcastLive && messageType === 'user') {
+      toast.error('Chat is only available during live broadcasts')
+      return
+    }
+
     if (content.trim().length === 0) return
     if (content.length > state.chatSettings.maxMessageLength) {
       toast.error(`Message too long. Max ${state.chatSettings.maxMessageLength} characters.`)
@@ -430,13 +501,15 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
 
     const messageData = {
+      content: content.trim(),
+      messageType,
+      replyTo,
       message: content.trim(),
       type: messageType,
       broadcastId: state.currentBroadcast,
       userId: state.currentUser.id,
       username: state.currentUser.username,
       userAvatar: state.currentUser.avatar,
-      replyTo,
       timestamp: new Date().toISOString()
     }
 
@@ -466,9 +539,13 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
 
     // Broadcast via WebSocket
     if (messageType === 'announcement') {
-      socketRef.current.emit('announcement', messageData)
+      socketRef.current.emit('send-announcement', state.currentBroadcast, {
+        content: content.trim(),
+        username: state.currentUser.username,
+        isStaff: true
+      })
     } else {
-      socketRef.current.emit('chat-message', messageData)
+      socketRef.current.emit('send-message', state.currentBroadcast, messageData)
     }
   }
 
@@ -478,11 +555,7 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
     }
 
     if (isTyping) {
-      socketRef.current.emit('user-typing', {
-        broadcastId: state.currentBroadcast,
-        userId: state.currentUser.id,
-        username: state.currentUser.username
-      })
+      socketRef.current.emit('typing-start', state.currentBroadcast, state.currentUser.username)
       
       // Clear previous timeout
       if (typingTimeoutRef.current) {
@@ -491,16 +564,10 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       
       // Auto-stop typing after 3 seconds
       typingTimeoutRef.current = setTimeout(() => {
-        socketRef.current?.emit('user-stopped-typing', {
-          broadcastId: state.currentBroadcast,
-          userId: state.currentUser?.id
-        })
+        socketRef.current?.emit('typing-stop', state.currentBroadcast, state.currentUser?.username)
       }, 3000)
     } else {
-      socketRef.current.emit('user-stopped-typing', {
-        broadcastId: state.currentBroadcast,
-        userId: state.currentUser.id
-      })
+      socketRef.current.emit('typing-stop', state.currentBroadcast, state.currentUser.username)
       
       if (typingTimeoutRef.current) {
         clearTimeout(typingTimeoutRef.current)
@@ -510,12 +577,16 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
   }
 
   const joinBroadcast = async (broadcastId: string, user: ChatUser) => {
-    if (!socketRef.current) return
+    console.log('🎤 Joining broadcast:', { broadcastId, user })
+    if (!socketRef.current) {
+      console.error('❌ No socket connection available')
+      return
+    }
 
     dispatch({ type: 'SET_CURRENT_BROADCAST', payload: broadcastId })
     dispatch({ type: 'SET_CURRENT_USER', payload: user })
 
-    // Load chat history
+    // Load chat history from database
     try {
       const response = await fetch(`/api/chat?broadcastId=${broadcastId}`)
       if (response.ok) {
@@ -549,7 +620,9 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       console.error('Error loading chat history:', error)
     }
 
-    socketRef.current.emit('join-broadcast', broadcastId, {
+    // Join chat via WebSocket
+    console.log('🔗 Emitting join-chat event:', { broadcastId, userInfo: { userId: user.id, username: user.username, avatar: user.avatar, role: user.role } })
+    socketRef.current.emit('join-chat', broadcastId, {
       userId: user.id,
       username: user.username,
       avatar: user.avatar,
@@ -608,6 +681,18 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
       console.error('Error moderating message:', error)
       toast.error('Failed to moderate message')
     }
+  }
+
+  const editMessage = async (messageId: string, newContent: string) => {
+    if (!socketRef.current || !state.currentUser) return
+    
+    socketRef.current.emit('edit-message', state.currentBroadcast, messageId, newContent)
+  }
+
+  const deleteMessage = async (messageId: string) => {
+    if (!socketRef.current || !state.currentUser) return
+    
+    socketRef.current.emit('delete-message', state.currentBroadcast, messageId)
   }
 
   const moderateUser = async (userId: string, action: 'ban' | 'unban' | 'mute' | 'unmute' | 'timeout', duration?: number) => {
@@ -732,6 +817,8 @@ export function ChatProvider({ children }: { children: React.ReactNode }) {
         moderateMessage,
         moderateUser,
         likeMessage,
+        editMessage,
+        deleteMessage,
         toggleChat,
         minimizeChat,
         maximizeChat,

@@ -18,11 +18,11 @@ export class AudioBroadcaster {
       console.log('Starting audio broadcasting for:', this.broadcastId)
 
       // Connect to Socket.IO server
-      this.socket = io()
+      this.socket = io('http://localhost:3001')
       
       await new Promise((resolve, reject) => {
-        this.socket!.on('connect', resolve)
-        this.socket!.on('connect_error', reject)
+        this.socket!.on('connect', () => resolve(undefined))
+        this.socket!.on('connect_error', (err: any) => reject(err))
         setTimeout(() => reject(new Error('Connection timeout')), 5000)
       })
 
@@ -180,11 +180,11 @@ export class AudioListener {
       }
 
       // Connect to Socket.IO server
-      this.socket = io()
+      this.socket = io('http://localhost:3001')
       
-      await new Promise((resolve, reject) => {
-        this.socket!.on('connect', resolve)
-        this.socket!.on('connect_error', reject)
+      await new Promise<void>((resolve, reject) => {
+        this.socket!.on('connect', () => resolve())
+        this.socket!.on('connect_error', (err: any) => reject(err))
         setTimeout(() => reject(new Error('Connection timeout')), 5000)
       })
 

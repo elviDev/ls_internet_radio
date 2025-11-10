@@ -1,15 +1,15 @@
-require('dotenv').config()
-const express = require('express')
-const { createServer } = require('http')
-const { Server } = require('socket.io')
-const cors = require('cors')
-const helmet = require('helmet')
-const rateLimit = require('express-rate-limit')
+import 'dotenv/config'
+import express from 'express'
+import { createServer } from 'http'
+import { Server } from 'socket.io'
+import cors from 'cors'
+import helmet from 'helmet'
+import rateLimit from 'express-rate-limit'
 
-const chatRoutes = require('./routes/chat')
-const broadcastRoutes = require('./routes/broadcast')
-const unifiedAudioHandler = require('./handlers/unified-audio')
-const chatHandler = require('./handlers/chat')
+import chatRoutes from './routes/chat'
+import broadcastRoutes from './routes/broadcast'
+import unifiedAudioHandler from './handlers/unified-audio'
+import chatHandler from './handlers/chat'
 
 const app = express()
 const server = createServer(app)
@@ -42,8 +42,26 @@ app.get('/health', (req, res) => {
 const io = new Server(server, {
   cors: {
     origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
-    methods: ['GET', 'POST']
-  }
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true,
+  pingTimeout: 60000,
+  pingInterval: 25000
+})
+
+// Add connection logging
+io.on('connection', (socket) => {
+  console.log(`🔗 Client connected: ${socket.id}`)
+  
+  socket.on('disconnect', (reason) => {
+    console.log(`❌ Client disconnected: ${socket.id}, reason: ${reason}`)
+  })
+  
+  socket.on('error', (error) => {
+    console.error(`🚨 Socket error for ${socket.id}:`, error)
+  })
 })
 
 // Initialize unified audio and chat handlers

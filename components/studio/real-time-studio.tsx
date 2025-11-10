@@ -8,6 +8,7 @@ interface RealTimeStudioProps {
   isLive: boolean
   onGoLive: () => Promise<void>
   onEndBroadcast: () => Promise<void>
+  broadcast?: any
 }
 
 export function RealTimeStudio({ 
@@ -15,12 +16,17 @@ export function RealTimeStudio({
   userId, 
   isLive, 
   onGoLive, 
-  onEndBroadcast 
+  onEndBroadcast,
+  broadcast
 }: RealTimeStudioProps) {
   return (
     <UnifiedStudioInterface 
       broadcastId={broadcastId}
       stationName="LS Radio Live Studio"
+      broadcast={broadcast}
+      onGoLive={onGoLive}
+      onEndBroadcast={onEndBroadcast}
+      isLive={isLive}
     />
   )
 }

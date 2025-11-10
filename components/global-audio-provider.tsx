@@ -3,6 +3,8 @@
 import { createContext, useContext, useState, useEffect } from "react"
 import LivePlayer from "@/components/live-player"
 import { ChatWidget } from "@/components/chat/chat-widget"
+import { useAuth } from "@/contexts/auth-context"
+import { useBroadcast } from "@/contexts/broadcast-context"
 
 interface GlobalAudioContextType {
   isPlaying: boolean
@@ -24,17 +26,22 @@ export function useGlobalAudio() {
 export function GlobalAudioProvider({ children }: { children: React.ReactNode }) {
   const [isPlaying, setIsPlaying] = useState(false)
   const [currentProgram, setCurrentProgram] = useState(null)
-  const [userName, setUserName] = useState("")
-  const [isUserNameSet, setIsUserNameSet] = useState(false)
+  const { user } = useAuth()
+  
+  // Try to use broadcast context if available
+  let currentBroadcast = null
+  let isLive = false
+  
+  try {
+    const broadcast = useBroadcast()
+    isLive = broadcast.isStreaming
+    console.log('🌍 GlobalAudioProvider got broadcast context:', { isStreaming: broadcast.isStreaming, connectionState: broadcast.connectionState })
+  } catch (error) {
+    // BroadcastProvider not available in this context
+    console.log('🌍 BroadcastProvider not available in GlobalAudioProvider')
+  }
 
-  // Check for stored username on mount
-  useEffect(() => {
-    const storedUserName = localStorage.getItem("radio_user_name")
-    if (storedUserName) {
-      setUserName(storedUserName)
-      setIsUserNameSet(true)
-    }
-  }, [])
+
 
   return (
     <GlobalAudioContext.Provider value={{
@@ -45,14 +52,17 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
     }}>
       {children}
       <LivePlayer />
-      {isUserNameSet && (
+
+      {user && (
         <ChatWidget
-          broadcastId="live-broadcast"
+          broadcastId={currentBroadcast?.id || 'general-chat'}
           currentUser={{
-            id: `user_${userName}`,
-            username: userName,
-            role: 'listener'
+            id: user.id,
+            username: user.name || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email) || 'User',
+            avatar: user.avatar,
+            role: user.role === 'admin' ? 'admin' : 'listener'
           }}
+          isLive={isLive}
           position="bottom-right"
         />
       )}

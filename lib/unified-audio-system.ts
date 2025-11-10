@@ -122,28 +122,27 @@ export class UnifiedAudioSystem {
         })
 
         this.socket.on('connect', () => {
-          console.log('🔗 Connected to realtime server')
+          console.log('🔗 Connected to TypeScript realtime server')
           this.setupSocketHandlers()
           resolve()
         })
 
         this.socket.on('connect_error', (error) => {
           console.warn('Server connection failed, continuing without server:', error.message)
-          resolve() // Don't fail initialization if server is down
+          resolve()
         })
 
         this.socket.on('disconnect', (reason) => {
           console.warn('Disconnected from server:', reason)
         })
 
-        // Don't wait too long for connection
         setTimeout(() => {
           console.warn('Server connection timeout, continuing without server')
           resolve()
-        }, 3000)
+        }, 8000)
       } catch (error) {
         console.warn('Failed to create socket connection:', error)
-        resolve() // Continue without server
+        resolve()
       }
     })
   }
@@ -151,17 +150,33 @@ export class UnifiedAudioSystem {
   private setupSocketHandlers(): void {
     if (!this.socket) return
 
-    this.socket.on('listener-count', (data) => {
+    this.socket.on('listener-count', (data: { count: number, peak: number }) => {
       this.metrics.listenerCount = data.count
       this.onMetricsUpdate?.(this.metrics)
     })
 
-    this.socket.on('audio-source-request', (data) => {
-      this.onSourceRequest?.(data)
+    this.socket.on('audio-source-added', (data: any) => {
+      console.log('🎤 Audio source added:', data)
     })
 
-    this.socket.on('call-accepted', (data) => {
+    this.socket.on('audio-source-updated', (data: any) => {
+      console.log('🎛️ Audio source updated:', data)
+    })
+
+    this.socket.on('audio-source-removed', (data: any) => {
+      console.log('🔇 Audio source removed:', data)
+    })
+
+    this.socket.on('call-accepted', (data: any) => {
       this.handleIncomingCall(data)
+    })
+
+    this.socket.on('broadcast-stats', (stats: any) => {
+      console.log('📊 Broadcast stats:', stats)
+    })
+
+    this.socket.on('server-stats', (stats: any) => {
+      console.log('🖥️ Server stats:', stats)
     })
   }
 
@@ -171,8 +186,13 @@ export class UnifiedAudioSystem {
       // Resume audio context on first user interaction
       if (this.audioContext?.state === 'suspended') {
         console.log('🎚️ Resuming audio context after user gesture...')
-        await this.audioContext.resume()
-        console.log('🎚️ Audio context resumed, state:', this.audioContext.state)
+        try {
+          await this.audioContext.resume()
+          console.log('🎚️ Audio context resumed, state:', this.audioContext.state)
+        } catch (error) {
+          console.warn('Failed to resume audio context:', error)
+          // Continue anyway - the context might resume later
+        }
       }
 
       // Setup audio processing if not done yet
@@ -241,8 +261,7 @@ export class UnifiedAudioSystem {
           name: sourceConfig.name,
           id: sourceConfig.id,
           volume: sourceConfig.volume,
-          isMuted: sourceConfig.isMuted,
-          isActive: true
+          isMuted: sourceConfig.isMuted
         })
       }
 
@@ -337,14 +356,9 @@ export class UnifiedAudioSystem {
       if (this.socket?.connected) {
         this.socket.emit('join-as-broadcaster', this.config.broadcastId, {
           username: 'Radio Host',
-          stationName: 'LS Radio',
-          audioConfig: {
-            sampleRate: this.config.sampleRate,
-            channels: this.config.channels,
-            bitrate: this.config.bitrate
-          }
+          stationName: 'LS Radio'
         })
-        console.log('📻 Joined server as broadcaster')
+        console.log('📻 Joined TypeScript server as broadcaster')
       } else {
         console.warn('📻 Starting broadcast without server connection')
       }
