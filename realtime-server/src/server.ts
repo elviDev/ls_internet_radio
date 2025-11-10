@@ -8,6 +8,7 @@ import rateLimit from 'express-rate-limit'
 
 import chatRoutes from './routes/chat'
 import broadcastRoutes from './routes/broadcast'
+import streamRoutes from './routes/stream'
 import unifiedAudioHandler from './handlers/unified-audio'
 import chatHandler from './handlers/chat'
 
@@ -32,6 +33,7 @@ app.use(limiter)
 // Routes
 app.use('/api/chat', chatRoutes)
 app.use('/api/broadcast', broadcastRoutes)
+app.use('/stream', streamRoutes)
 
 // Health check
 app.get('/health', (req, res) => {

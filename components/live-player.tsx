@@ -12,6 +12,9 @@ import {
   AlertCircle,
   Radio,
   Signal,
+  Share2,
+  Copy,
+  ExternalLink,
 } from "lucide-react";
 import {
   Sheet,
@@ -24,7 +27,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
-import { BroadcastProvider, useBroadcast } from "@/contexts/broadcast-context";
+import { useBroadcast } from "@/contexts/broadcast-context";
 
 function LivePlayerInterface() {
   const broadcastContext = useBroadcast();
@@ -35,6 +38,7 @@ function LivePlayerInterface() {
   const [isLoading, setIsLoading] = useState(false);
   const [fallbackMode, setFallbackMode] = useState(false);
   const [isPlayingFallback, setIsPlayingFallback] = useState(false);
+  const [streamUrl, setStreamUrl] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   // Fallback streams for when no live broadcast is available
@@ -103,28 +107,44 @@ function LivePlayerInterface() {
       const currentResponse = await fetch('/api/broadcasts/current');
       if (currentResponse.ok) {
         const currentData = await currentResponse.json();
-        setCurrentBroadcast(currentData.current);
-        setUpcomingBroadcast(currentData.upcoming);
+        console.log('📻 Current broadcast API response:', currentData);
         
-        // Update current show display
-        if (currentData.current) {
-          setCurrentShow(currentData.current.title);
+        // Handle direct response format from the API
+        if (currentData.isLive) {
+          setCurrentBroadcast(currentData);
+          setCurrentShow(currentData.title);
           setFallbackMode(false);
-        } else if (currentData.upcoming) {
-          const startTime = new Date(currentData.upcoming.startTime);
-          setCurrentShow(`Up next: ${currentData.upcoming.title} at ${startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
-          setFallbackMode(true);
+          // Set HTTP stream URL for sharing
+          setStreamUrl(`${process.env.NEXT_PUBLIC_REALTIME_SERVER_URL || 'http://localhost:3001'}/stream/broadcast/${currentData.id}/stream.mp3`);
         } else {
-          setCurrentShow("No scheduled broadcasts");
+          // No live broadcast currently
+          if (currentData.upcoming) {
+            const startTime = new Date(currentData.upcoming.startTime);
+            setCurrentShow(`Up next: ${currentData.upcoming.title} at ${startTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}`);
+          } else {
+            setCurrentShow("No live broadcasts at the moment");
+          }
           setFallbackMode(true);
+          setStreamUrl(null);
         }
+      } else {
+        // API call failed, try to get any active broadcast
+        console.log('Current broadcast API failed with status:', currentResponse.status);
+        setCurrentShow("Checking for live broadcasts...");
+        setFallbackMode(true);
+        setStreamUrl(null);
       }
 
-      // Fetch schedule
-      const scheduleResponse = await fetch('/api/broadcasts/schedule');
-      if (scheduleResponse.ok) {
-        const scheduleData = await scheduleResponse.json();
-        setSchedule(scheduleData.schedule || []);
+      // Fetch schedule (optional)
+      try {
+        const scheduleResponse = await fetch('/api/broadcasts/schedule');
+        if (scheduleResponse.ok) {
+          const scheduleData = await scheduleResponse.json();
+          setSchedule(scheduleData.schedule || []);
+        }
+      } catch (error) {
+        console.log('Schedule fetch failed, continuing without schedule');
+        setSchedule([]);
       }
     } catch (error) {
       console.error('Error fetching broadcast data:', error);
@@ -133,9 +153,31 @@ function LivePlayerInterface() {
     }
   };
 
+  // Sync with broadcast context state
+  useEffect(() => {
+    if (broadcastContext.isStreaming) {
+      setFallbackMode(false);
+      setCurrentShow('Live Broadcast');
+    }
+  }, [broadcastContext.isStreaming]);
+
   // Fetch data on component mount and set up periodic refresh
   useEffect(() => {
     fetchBroadcastData();
+    
+    // Debug: Check what's in the database
+    const checkDatabase = async () => {
+      try {
+        const debugResponse = await fetch('/api/debug/broadcasts');
+        if (debugResponse.ok) {
+          const debugData = await debugResponse.json();
+          console.log('🔍 Database debug:', debugData);
+        }
+      } catch (error) {
+        console.log('Debug call failed:', error);
+      }
+    };
+    checkDatabase();
     
     // Refresh every 30 seconds to keep data current
     const interval = setInterval(fetchBroadcastData, 30000);
@@ -249,34 +291,23 @@ function LivePlayerInterface() {
       setIsLoading(true);
       console.log('Starting playback...');
       
-      // ALWAYS use fallback mode for now until live broadcasting is properly set up
-      if (currentBroadcast && !fallbackMode && false) { // Disabled live mode temporarily
+      // Try live broadcast first if available
+      if (currentBroadcast && !fallbackMode) {
         console.log('Attempting to join live broadcast:', currentBroadcast.id);
         try {
-          // Add timeout to prevent hanging
-          const timeoutPromise = new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Connection timeout')), 10000)
-          );
-          
-          await Promise.race([
-            broadcastContext.joinBroadcast(currentBroadcast.id),
-            timeoutPromise
-          ]);
+          await broadcastContext.joinBroadcast(currentBroadcast.id);
+          console.log('Successfully joined live broadcast');
         } catch (error) {
           console.error('Live broadcast connection failed, falling back to music:', error);
           setFallbackMode(true);
         }
-      } else {
+      }
+      
+      // If no live broadcast or fallback mode is enabled
+      if (fallbackMode || !currentBroadcast) {
         console.log('Using fallback audio mode');
         setFallbackMode(true);
         
-        // Immediately start test tone as primary option (most reliable)
-        console.log('Starting test tone immediately for reliable audio feedback');
-        
-        generateTestTone();
-        setIsPlayingFallback(true);
-        
-        // Also try fallback stream in parallel
         if (audioRef.current) {
           try {
             audioRef.current.load();
@@ -284,15 +315,22 @@ function LivePlayerInterface() {
             if (playPromise) {
               playPromise.then(() => {
                 console.log('Fallback audio play started successfully');
+                setIsPlayingFallback(true);
               }).catch(playError => {
                 console.error('Fallback audio failed:', playError);
                 if (currentStreamIndex < fallbackStreams.length - 1) {
                   setCurrentStreamIndex((prevIndex) => prevIndex + 1);
+                } else {
+                  // Last resort: generate test tone
+                  generateTestTone();
+                  setIsPlayingFallback(true);
                 }
               });
             }
           } catch (playError) {
             console.error('Fallback audio setup failed:', playError);
+            generateTestTone();
+            setIsPlayingFallback(true);
           }
         }
       }
@@ -303,6 +341,32 @@ function LivePlayerInterface() {
 
   const toggleMute = () => {
     broadcastContext.setMuted(!broadcastContext.isMuted);
+  };
+
+  const shareStream = async () => {
+    if (!streamUrl || !currentBroadcast) return;
+    
+    const shareData = {
+      title: `🎙️ ${currentBroadcast.title}`,
+      text: `Listen to ${currentBroadcast.title} live!`,
+      url: streamUrl
+    };
+    
+    if (navigator.share) {
+      try {
+        await navigator.share(shareData);
+      } catch (error) {
+        console.log('Share cancelled');
+      }
+    } else {
+      // Fallback: copy to clipboard
+      try {
+        await navigator.clipboard.writeText(streamUrl);
+        alert('Stream URL copied to clipboard!');
+      } catch (error) {
+        console.error('Failed to copy:', error);
+      }
+    }
   };
 
   // Get connection status for display
@@ -438,6 +502,17 @@ function LivePlayerInterface() {
                 ))}
               </div>
             </div>
+            {streamUrl && currentBroadcast && (
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={shareStream}
+                className="mr-2"
+              >
+                <Share2 className="h-4 w-4 mr-2" />
+                Share
+              </Button>
+            )}
             <Sheet>
               <SheetTrigger asChild>
                 <Button variant="link" className="text-brand-600 ml-4">
@@ -598,9 +673,5 @@ function LivePlayerInterface() {
 }
 
 export default function LivePlayer() {
-  return (
-    <BroadcastProvider isBroadcaster={false}>
-      <LivePlayerInterface />
-    </BroadcastProvider>
-  );
+  return <LivePlayerInterface />;
 }

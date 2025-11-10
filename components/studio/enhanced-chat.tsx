@@ -451,7 +451,7 @@ export function EnhancedChat({ isLive, hostId, broadcastId, onMessageSend, onUse
                                 <Button
                                   variant="ghost"
                                   size="sm"
-                                  onClick={() => moderateMessage(message.id, 'hide')}
+                                  onClick={() => moderateMessage(message.id, 'delete')}
                                   className="h-6 px-2 text-xs text-red-600"
                                 >
                                   <Flag className="h-3 w-3" />

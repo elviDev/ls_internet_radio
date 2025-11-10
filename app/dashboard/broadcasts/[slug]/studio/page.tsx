@@ -41,10 +41,9 @@ import { AudioPlayer } from "@/components/studio/audio-player"
 import { Soundboard } from "@/components/studio/soundboard"
 import { AnalyticsDashboard } from "@/components/studio/analytics-dashboard"
 import { EnhancedChat } from "@/components/studio/enhanced-chat"
-import { RealTimeStudio } from "@/components/studio/real-time-studio"
 import { AudioProvider } from "@/contexts/audio-context"
-import { useWebRTCBroadcast } from "@/hooks/use-webrtc-broadcast"
 import { BroadcastProvider, useBroadcast } from "@/contexts/broadcast-context"
+import { BroadcastStudioProvider, useBroadcastStudio } from "@/contexts/broadcast-studio-context"
 
 type Broadcast = {
   id: string
@@ -118,46 +117,26 @@ function StudioInterface() {
   const broadcastSlug = params.slug as string
   
   const [broadcast, setBroadcast] = useState<Broadcast | null>(null)
-  const [isLive, setIsLive] = useState(false)
-  
-  // Try to use broadcast context for real status
-  let broadcastContext = null
-  try {
-    broadcastContext = useBroadcast()
-  } catch (error) {
-    // BroadcastProvider not available
-  }
   const [isLoading, setIsLoading] = useState(true)
-
-  const [broadcastDuration, setBroadcastDuration] = useState("00:00:00")
-  const [startTime, setStartTime] = useState<Date | null>(null)
   const [activeTab, setActiveTab] = useState("console")
-  
-  // Stream monitoring
-  const [streamStatus, setStreamStatus] = useState<StreamStatus>({
-    isConnected: false,
-    quality: 0,
-    bitrate: 0,
-    latency: 0,
-    dropped: 0,
-    errors: []
-  })
-  
-  // Studio metrics
-  const [studioMetrics, setStudioMetrics] = useState<StudioMetrics>({
-    cpuUsage: 0,
-    memoryUsage: 0,
-    networkStatus: 'offline',
-    audioLevels: { input: 0, output: 0, peak: 0 }
-  })
-
-  // Analytics data
   const [listeners, setListeners] = useState<any[]>([])
-  const [peakListeners, setPeakListeners] = useState(0)
-  const [currentListenerCount, setCurrentListenerCount] = useState(0)
+  
+  // Use unified studio context
+  const {
+    isLive,
+    broadcastDuration,
+    startTime,
+    studioMetrics,
+    streamStatus,
+    currentListenerCount,
+    peakListeners,
+    updateAudioLevels
+  } = useBroadcastStudio()
 
   const audioContextRef = useRef<AudioContext | null>(null)
   const streamRef = useRef<MediaStream | null>(null)
+  const analyserRef = useRef<AnalyserNode | null>(null)
+  const animationFrameRef = useRef<number | null>(null)
 
   // Fetch broadcast data
   useEffect(() => {
@@ -166,111 +145,96 @@ function StudioInterface() {
     }
   }, [broadcastSlug])
 
-  // Timer for live broadcast duration
-  useEffect(() => {
-    let interval: NodeJS.Timeout
-    if (isLive && startTime) {
-      interval = setInterval(() => {
-        const now = new Date()
-        const diff = now.getTime() - startTime.getTime()
-        const hours = Math.floor(diff / (1000 * 60 * 60))
-        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
-        const seconds = Math.floor((diff % (1000 * 60)) / 1000)
-        setBroadcastDuration(`${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`)
-      }, 1000)
-    }
-    return () => clearInterval(interval)
-  }, [isLive, startTime])
 
-  // Use broadcast context for real metrics if available
+
+  // Initialize audio monitoring
   useEffect(() => {
-    if (broadcastContext) {
-      const contextIsLive = broadcastContext.isStreaming
-      setIsLive(contextIsLive)
+    const initAudioMonitoring = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true })
+        streamRef.current = stream
+        
+        const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)()
+        audioContextRef.current = audioContext
+        
+        const analyser = audioContext.createAnalyser()
+        analyser.fftSize = 512
+        analyser.smoothingTimeConstant = 0.3
+        analyserRef.current = analyser
+        
+        const source = audioContext.createMediaStreamSource(stream)
+        source.connect(analyser)
+        
+        startAudioLevelMonitoring()
+      } catch (error) {
+        console.error('Failed to initialize audio monitoring:', error)
+      }
+    }
+    
+    initAudioMonitoring()
+    
+    return () => {
+      if (animationFrameRef.current) {
+        cancelAnimationFrame(animationFrameRef.current)
+      }
+      if (streamRef.current) {
+        streamRef.current.getTracks().forEach(track => track.stop())
+      }
+      if (audioContextRef.current) {
+        audioContextRef.current.close()
+      }
+    }
+  }, [])
+  
+  const startAudioLevelMonitoring = () => {
+    if (!analyserRef.current) return
+    
+    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount)
+    let lastUpdateTime = 0
+    
+    const updateLevels = (currentTime: number) => {
+      if (!analyserRef.current) return
       
-      if (contextIsLive) {
-        setStreamStatus({
-          isConnected: true,
-          quality: broadcastContext.streamQuality?.bitrate ? (broadcastContext.streamQuality.bitrate / 128 * 100) : 95,
-          bitrate: broadcastContext.streamQuality?.bitrate || 128,
-          latency: broadcastContext.streamQuality?.latency || 150,
-          dropped: 0,
-          errors: []
+      // Update at 60fps for smooth real-time feedback
+      if (currentTime - lastUpdateTime >= 16) {
+        analyserRef.current.getByteFrequencyData(dataArray)
+        
+        let sum = 0
+        let peak = 0
+        // Focus on mid-frequency range for voice detection
+        const startFreq = Math.floor(dataArray.length * 0.1)
+        const endFreq = Math.floor(dataArray.length * 0.8)
+        
+        for (let i = startFreq; i < endFreq; i++) {
+          const value = dataArray[i]
+          sum += value * value // Square for better sensitivity
+          if (value > peak) peak = value
+        }
+        
+        const avgSquared = sum / (endFreq - startFreq)
+        const rms = Math.sqrt(avgSquared) / 255
+        
+        // More responsive levels with immediate updates
+        const inputLevel = Math.min(100, rms * 400)
+        const peakLevel = Math.min(100, (peak / 255) * 150)
+        
+        // Update audio levels through studio context
+        updateAudioLevels({
+          input: Math.round(inputLevel * 10) / 10,
+          output: Math.round(inputLevel * 0.9 * 10) / 10,
+          peak: Math.round(peakLevel * 10) / 10
         })
         
-        setStudioMetrics({
-          cpuUsage: Math.max(20, broadcastContext.audioLevel * 100),
-          memoryUsage: 45,
-          networkStatus: broadcastContext.connectionState === 'connected' ? 'excellent' : 'good',
-          audioLevels: {
-            input: broadcastContext.audioLevel * 100,
-            output: broadcastContext.audioLevel * 90,
-            peak: broadcastContext.audioLevel * 100
-          }
-        })
-        
-        setCurrentListenerCount(50 + Math.floor(Math.random() * 100))
-      } else {
-        setStreamStatus({
-          isConnected: false,
-          quality: 0,
-          bitrate: 0,
-          latency: 0,
-          dropped: 0,
-          errors: []
-        })
-        setStudioMetrics({
-          cpuUsage: 0,
-          memoryUsage: 0,
-          networkStatus: 'offline',
-          audioLevels: { input: 0, output: 0, peak: 0 }
-        })
-        setCurrentListenerCount(0)
+        lastUpdateTime = currentTime
       }
-    } else {
-      // Fallback simulation when broadcast context not available
-      if (isLive) {
-        const interval = setInterval(() => {
-          setStreamStatus(prev => ({
-            isConnected: true,
-            quality: 95 + Math.random() * 5,
-            bitrate: 320 + Math.random() * 32 - 16,
-            latency: 150 + Math.random() * 100,
-            dropped: prev.dropped + (Math.random() > 0.9 ? 1 : 0),
-            errors: prev.errors
-          }))
-
-          setStudioMetrics({
-            cpuUsage: 30 + Math.random() * 20,
-            memoryUsage: 45 + Math.random() * 15,
-            networkStatus: 'excellent',
-            audioLevels: {
-              input: Math.random() * 80 + 10,
-              output: Math.random() * 70 + 20,
-              peak: Math.random() * 90 + 10
-            }
-          })
-        }, 2000)
-
-        return () => clearInterval(interval)
-      } else {
-        setStreamStatus({
-          isConnected: false,
-          quality: 0,
-          bitrate: 0,
-          latency: 0,
-          dropped: 0,
-          errors: []
-        })
-        setStudioMetrics({
-          cpuUsage: 0,
-          memoryUsage: 0,
-          networkStatus: 'offline',
-          audioLevels: { input: 0, output: 0, peak: 0 }
-        })
-      }
+      
+      animationFrameRef.current = requestAnimationFrame(updateLevels)
     }
-  }, [isLive, broadcastContext])
+    
+    animationFrameRef.current = requestAnimationFrame(updateLevels)
+  }
+  
+
 
   const fetchBroadcast = async () => {
     try {
@@ -278,9 +242,8 @@ function StudioInterface() {
       if (response.ok) {
         const data = await response.json()
         setBroadcast(data)
-        setIsLive(data.status === 'LIVE')
-        if (data.status === 'LIVE') {
-          setStartTime(new Date(data.startTime))
+        if (data.status === 'LIVE' && data.startTime) {
+          // startTime is managed by studio context now
         }
       } else {
         toast.error("Failed to load broadcast")
@@ -297,15 +260,6 @@ function StudioInterface() {
 
   const handleEndBroadcast = async () => {
     try {
-      // Stop WebRTC broadcasting
-      // WebRTC stop will be handled by mixing board
-      
-      // Update local state
-      setIsLive(false)
-      setStartTime(null)
-      setBroadcastDuration("00:00:00")
-      setStreamStatus(prev => ({ ...prev, isConnected: false }))
-
       // Update broadcast status in database
       const response = await fetch(`/api/admin/broadcasts/${broadcastSlug}`, {
         method: 'PATCH',
@@ -382,6 +336,22 @@ function StudioInterface() {
       case 'poor': return 'text-yellow-600'
       default: return 'text-red-600'
     }
+  }
+  
+  const getAudioLevelColor = (level: number) => {
+    if (level < 20) return 'bg-gray-400'
+    if (level < 40) return 'bg-green-500'
+    if (level < 60) return 'bg-yellow-500'
+    if (level < 80) return 'bg-orange-500'
+    return 'bg-red-500'
+  }
+  
+  const getAudioLevelGradient = (level: number) => {
+    if (level < 20) return 'bg-gradient-to-r from-gray-400 to-gray-500'
+    if (level < 40) return 'bg-gradient-to-r from-green-400 to-green-600'
+    if (level < 60) return 'bg-gradient-to-r from-yellow-400 to-yellow-600'
+    if (level < 80) return 'bg-gradient-to-r from-orange-400 to-orange-600'
+    return 'bg-gradient-to-r from-red-400 to-red-600'
   }
 
   if (isLoading) {
@@ -685,33 +655,7 @@ function StudioInterface() {
             </Card>
           )}
 
-          {/* Real-Time Studio Controls */}
-          {broadcast && (
-            <RealTimeStudio
-              broadcastId={broadcast.id}
-              userId={broadcast.hostUser.id}
-              isLive={broadcastContext ? broadcastContext.isStreaming : isLive}
-              broadcast={broadcast}
-              onGoLive={async () => {
-                try {
-                  if (broadcastContext && broadcast) {
-                    await broadcastContext.startBroadcast(broadcast.id)
-                    setStartTime(new Date())
-                    toast.success("🎙️ Started broadcasting")
-                  } else {
-                    // Fallback for when broadcast context is not available
-                    setIsLive(true)
-                    setStartTime(new Date())
-                    toast.success("🎙️ Started broadcasting (test mode)")
-                  }
-                } catch (error) {
-                  console.error('Error starting broadcast:', error)
-                  toast.error("Failed to start broadcast")
-                }
-              }}
-              onEndBroadcast={handleEndBroadcast}
-            />
-          )}
+        
 
           {/* Audio Level Display */}
         <Card className="mb-6">
@@ -723,29 +667,47 @@ function StudioInterface() {
                   <span className="text-sm font-medium">Audio Input</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
                     <div 
-                      className="bg-gradient-to-r from-green-500 to-yellow-500 h-2 rounded-full transition-all duration-200"
-                      style={{ width: `${Math.random() * 80 + 10}%` }}
+                      className={`h-3 rounded-full ${getAudioLevelGradient(studioMetrics.audioLevels.input)}`}
+                      style={{ 
+                        width: `${studioMetrics.audioLevels.input}%`,
+                        boxShadow: studioMetrics.audioLevels.input > 50 ? '0 0 8px rgba(255, 165, 0, 0.6)' : 'none'
+                      }}
                     />
                   </div>
-                  <span className="text-xs text-gray-500 w-8">--</span>
+                  <span className={`text-xs w-12 font-mono ${
+                    studioMetrics.audioLevels.input > 80 ? 'text-red-600 font-bold' :
+                    studioMetrics.audioLevels.input > 60 ? 'text-orange-600' :
+                    studioMetrics.audioLevels.input > 20 ? 'text-green-600' : 'text-gray-500'
+                  }`}>
+                    {Math.round(studioMetrics.audioLevels.input)}%
+                  </span>
                 </div>
               </div>
               
               <div className="space-y-2">
                 <div className="flex items-center gap-2">
                   <Volume2 className="h-4 w-4 text-purple-500" />
-                  <span className="text-sm font-medium">Volume</span>
+                  <span className="text-sm font-medium">Output</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 bg-gray-200 rounded-full h-2">
+                  <div className="flex-1 bg-gray-200 rounded-full h-3 overflow-hidden">
                     <div 
-                      className="bg-purple-500 h-2 rounded-full transition-all duration-200"
-                      style={{ width: `75%` }}
+                      className={`h-3  rounded-full transition-all duration-100 ${getAudioLevelGradient(studioMetrics.audioLevels.output)}`}
+                      style={{ 
+                        width: `${studioMetrics.audioLevels.output}%`,
+                        boxShadow: studioMetrics.audioLevels.output > 50 ? '0 0 6px rgba(147, 51, 234, 0.5)' : 'none'
+                      }}
                     />
-                  </div>
-                  <span className="text-xs text-gray-500 w-8">75%</span>
+                  </div>  
+                  <span className={`text-xs w-12 font-mono ${
+                    studioMetrics.audioLevels.output > 80 ? 'text-red-600 font-bold' :
+                    studioMetrics.audioLevels.output > 60 ? 'text-orange-600' :
+                    studioMetrics.audioLevels.output > 20 ? 'text-green-600' : 'text-gray-500'
+                  }`}>
+                    {Math.round(studioMetrics.audioLevels.output)}%
+                  </span>
                 </div>
               </div>
               
@@ -937,9 +899,14 @@ function StudioInterface() {
 }
 
 export default function StudioPage() {
+  const params = useParams()
+  const broadcastSlug = params.slug as string
+  
   return (
     <BroadcastProvider isBroadcaster={true}>
-      <StudioInterface />
+      <BroadcastStudioProvider broadcastId={broadcastSlug}>
+        <StudioInterface />
+      </BroadcastStudioProvider>
     </BroadcastProvider>
   )
 }

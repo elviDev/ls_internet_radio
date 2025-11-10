@@ -4,7 +4,7 @@ import { createContext, useContext, useState, useEffect } from "react"
 import LivePlayer from "@/components/live-player"
 import { ChatWidget } from "@/components/chat/chat-widget"
 import { useAuth } from "@/contexts/auth-context"
-import { useBroadcast } from "@/contexts/broadcast-context"
+import { BroadcastProvider, useBroadcast } from "@/contexts/broadcast-context"
 
 interface GlobalAudioContextType {
   isPlaying: boolean
@@ -29,12 +29,14 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
   const { user } = useAuth()
   
   // Try to use broadcast context if available
-  let currentBroadcast = null
+  let currentBroadcast: any = null
   let isLive = false
   
   try {
     const broadcast = useBroadcast()
-    isLive = broadcast.isStreaming
+    // keep a reference so we can read id safely where this provider is used
+    currentBroadcast = broadcast
+    isLive = Boolean(broadcast?.isStreaming)
     console.log('🌍 GlobalAudioProvider got broadcast context:', { isStreaming: broadcast.isStreaming, connectionState: broadcast.connectionState })
   } catch (error) {
     // BroadcastProvider not available in this context
@@ -51,21 +53,22 @@ export function GlobalAudioProvider({ children }: { children: React.ReactNode })
       setCurrentProgram
     }}>
       {children}
-      <LivePlayer />
-
-      {user && (
-        <ChatWidget
-          broadcastId={currentBroadcast?.id || 'general-chat'}
-          currentUser={{
-            id: user.id,
-            username: user.name || (user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email) || 'User',
-            avatar: user.avatar,
-            role: user.role === 'admin' ? 'admin' : 'listener'
-          }}
-          isLive={isLive}
-          position="bottom-right"
-        />
-      )}
+      <BroadcastProvider isBroadcaster={false}>
+        <LivePlayer />
+        {user && (
+          <ChatWidget
+              broadcastId={currentBroadcast?.id || 'general-chat'}
+              currentUser={{
+                id: user.id,
+                username: user.name || user.email || 'User',
+                avatar: user.profilePicture || undefined,
+                role: user.role === 'admin' ? 'admin' : 'listener'
+              }}
+              isLive={isLive}
+              position="bottom-right"
+            />
+        )}
+      </BroadcastProvider>
     </GlobalAudioContext.Provider>
   )
 }

@@ -32,4 +32,4 @@ claude-*.json
 
 # database
 *.db
-*.db-journal
+*.db-journalpublic/

@@ -54,6 +54,40 @@ export async function GET() {
     })
 
     if (!liveBroadcast) {
+      // Check for any READY broadcasts that could go live
+      const readyBroadcast = await prisma.liveBroadcast.findFirst({
+        where: {
+          status: "READY",
+        },
+        include: {
+          hostUser: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+        },
+        orderBy: {
+          startTime: 'asc',
+        },
+      })
+      
+      if (readyBroadcast) {
+        return NextResponse.json({ 
+          isLive: false,
+          upcoming: {
+            id: readyBroadcast.id,
+            title: readyBroadcast.title,
+            description: readyBroadcast.description,
+            startTime: readyBroadcast.startTime,
+            host: `${readyBroadcast.hostUser.firstName} ${readyBroadcast.hostUser.lastName}`,
+          },
+          message: "Broadcast ready to go live" 
+        })
+      }
+      
       return NextResponse.json({ 
         isLive: false,
         message: "No live broadcast currently active" 
@@ -76,8 +110,10 @@ export async function GET() {
       title: liveBroadcast.program?.title || liveBroadcast.title,
       description: liveBroadcast.program?.description || liveBroadcast.description,
       host: `${liveBroadcast.hostUser.firstName} ${liveBroadcast.hostUser.lastName}`,
+      hostUser: liveBroadcast.hostUser,
       genre: liveBroadcast.program?.genre || "General",
       isLive: true,
+      status: 'LIVE',
       startTime: liveBroadcast.startTime,
       endTime: liveBroadcast.endTime,
       currentTrack,
@@ -85,7 +121,7 @@ export async function GET() {
       staff: liveBroadcast.staff,
       guests: liveBroadcast.guests,
       banner: liveBroadcast.banner,
-      streamUrl: process.env.STREAM_URL || "wss://localhost:3000/stream"
+      streamUrl: `${process.env.NEXT_PUBLIC_REALTIME_SERVER_URL || 'http://localhost:3001'}/stream/broadcast/${liveBroadcast.id}/stream.mp3`
     }
 
     return NextResponse.json(programInfo)

@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react"
 import { ChannelAudioMonitor } from "./channel-audio-monitor"
 import { useAudioProcessor } from "@/hooks/use-audio-processor"
 import { useAudio } from "@/contexts/audio-context"
-import { useWebRTCBroadcast } from "@/hooks/use-webrtc-broadcast"
+import { useBroadcastStudio } from "@/contexts/broadcast-studio-context"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Slider } from "@/components/ui/slider"
@@ -75,19 +75,17 @@ export function MixingBoard({
   const [headphoneVolume, setHeadphoneVolume] = useState(60)
   const [recordingEnabled, setRecordingEnabled] = useState(false)
   const [showAdvanced, setShowAdvanced] = useState(false)
-  const [showAnalyzer, setShowAnalyzer] = useState(false)
   const [audioEnabled, setAudioEnabled] = useState(false)
-  const [analyzerData, setAnalyzerData] = useState<Uint8Array>(new Uint8Array(0))
   
-  // WebRTC broadcast hook
+  // Studio context for broadcast management
   const {
-    isConnected: webrtcConnected,
-    isBroadcasting: broadcastingEnabled,
-    listenerCount,
-    error: broadcastError,
+    isLive: broadcastingEnabled,
+    currentListenerCount: listenerCount,
     startBroadcast,
     stopBroadcast
-  } = useWebRTCBroadcast(broadcastId)
+  } = useBroadcastStudio()
+  
+  const [broadcastError, setBroadcastError] = useState<string | null>(null)
   
   // Global audio context for music control
   const { 
@@ -232,18 +230,7 @@ export function MixingBoard({
     ))
   }, [])
 
-  // Real-time analyzer updates
-  useEffect(() => {
-    if (!showAnalyzer || !audioEnabled) return
 
-    const updateAnalyzer = () => {
-      const data = audioProcessor.getMasterAnalyserData()
-      setAnalyzerData(data)
-    }
-
-    const intervalId = setInterval(updateAnalyzer, 50) // 20fps
-    return () => clearInterval(intervalId)
-  }, [showAnalyzer, audioEnabled, audioProcessor])
 
   // Enable audio processing
   const enableAudio = async () => {
@@ -255,15 +242,15 @@ export function MixingBoard({
   const toggleBroadcast = async () => {
     if (!audioEnabled) return
     
-    if (broadcastingEnabled) {
-      // Stop WebRTC broadcasting
-      stopBroadcast()
-    } else {
-      // Start WebRTC broadcasting with processed audio stream
-      const broadcastStream = audioProcessor.getBroadcastStream()
-      if (broadcastStream) {
-        await startBroadcast(broadcastStream)
+    try {
+      setBroadcastError(null)
+      if (broadcastingEnabled) {
+        await stopBroadcast()
+      } else {
+        await startBroadcast()
       }
+    } catch (error) {
+      setBroadcastError(error instanceof Error ? error.message : 'Broadcast failed')
     }
   }
 
@@ -583,7 +570,7 @@ export function MixingBoard({
                 variant={broadcastingEnabled ? "destructive" : "default"} 
                 className="w-full h-10"
                 onClick={toggleBroadcast}
-                disabled={!audioEnabled || !webrtcConnected}
+                disabled={!audioEnabled}
               >
                 <div className="flex items-center gap-2">
                   <Radio className="h-4 w-4" />
@@ -613,15 +600,7 @@ export function MixingBoard({
                 Advanced
               </Button>
               
-              <Button 
-                variant={showAnalyzer ? "default" : "outline"} 
-                className="w-full h-10" 
-                onClick={() => setShowAnalyzer(!showAnalyzer)}
-                disabled={!audioEnabled}
-              >
-                <Activity className="h-4 w-4 mr-2" />
-                {showAnalyzer ? 'Hide Analyzer' : 'Show Analyzer'}
-              </Button>
+
             </div>
           </div>
         </div>
@@ -655,30 +634,7 @@ export function MixingBoard({
           </div>
         )}
 
-        {/* Analyzer Panel */}
-        {showAnalyzer && (
-          <div className="mt-6 p-4 border rounded-lg bg-slate-50">
-            <h4 className="font-medium mb-3">Real-Time Audio Analyzer</h4>
-            <div className="flex items-end justify-center gap-1 h-32 bg-black rounded p-2">
-              {Array.from({ length: 32 }, (_, i) => {
-                const level = analyzerData[i] || 0
-                const height = (level / 255) * 100
-                const color = height > 80 ? 'bg-red-500' : height > 60 ? 'bg-yellow-500' : 'bg-green-500'
-                return (
-                  <div key={i} className="flex flex-col justify-end flex-1">
-                    <div 
-                      className={`w-full transition-all duration-75 ${color}`}
-                      style={{ height: `${height}%` }}
-                    />
-                  </div>
-                )
-              })}
-            </div>
-            <div className="text-xs text-center mt-2 text-slate-500">
-              Frequency Spectrum (20Hz - 20kHz)
-            </div>
-          </div>
-        )}
+
       </CardContent>
     </Card>
   )

@@ -7,6 +7,7 @@ import {
   ActiveCall,
   BroadcasterInfo 
 } from '../types'
+import { broadcastAudioData } from '../routes/stream'
 
 const activeBroadcasts = new Map<string, BroadcastSession>()
 const activeConnections = new Map<string, ConnectionInfo>()
@@ -184,12 +185,24 @@ export default function unifiedAudioHandler(io: Server) {
     socket.on('broadcast-audio', (broadcastId: string, audioData: any) => {
       const broadcast = activeBroadcasts.get(broadcastId)
       if (broadcast && broadcast.broadcaster === socket.id) {
+        // Send to WebRTC listeners
         socket.to(`broadcast-${broadcastId}`).emit('audio-stream', {
           audio: audioData.audio,
           timestamp: audioData.timestamp,
           metrics: audioData.metrics,
           broadcasterInfo: broadcast.broadcasterInfo
         })
+        
+        // Also send to HTTP stream listeners
+        if (audioData.audio) {
+          try {
+            // Convert base64 to Buffer
+            const audioBuffer = Buffer.from(audioData.audio, 'base64')
+            broadcastAudioData(broadcastId, audioBuffer)
+          } catch (error) {
+            console.error('Failed to convert audio data for HTTP stream:', error)
+          }
+        }
       }
     })
 
