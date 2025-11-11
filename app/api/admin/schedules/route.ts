@@ -79,7 +79,56 @@ export const GET = adminOnly(async (req: Request) => {
           },
           event: true,
           campaign: true,
-          advertisement: true
+          advertisement: true,
+          liveBroadcast: {
+            select: {
+              id: true,
+              title: true,
+              slug: true,
+              description: true,
+              status: true,
+              streamUrl: true,
+              hostUser: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true
+                }
+              },
+              banner: {
+                select: {
+                  id: true,
+                  url: true,
+                  originalName: true,
+                  type: true
+                }
+              },
+              program: {
+                select: {
+                  id: true,
+                  title: true,
+                  slug: true
+                }
+              },
+              staff: {
+                include: {
+                  user: {
+                    select: {
+                      id: true,
+                      firstName: true,
+                      lastName: true,
+                      username: true,
+                      email: true,
+                      profileImage: true
+                    }
+                  }
+                },
+                where: { isActive: true }
+              },
+              guests: true
+            }
+          }
         },
         orderBy: { startTime: "asc" },
         skip,
@@ -217,11 +266,10 @@ export const POST = adminOnly(async (req: Request) => {
           title,
           description: description || "",
           slug: generateSlug(title),
-          hostId: assignedTo || user.id, // Use assigned staff member or creator as host
+          hostId: assignedTo || user.id,
           startTime: new Date(startTime),
           endTime: endTime ? new Date(endTime) : null,
           status: "SCHEDULED",
-          // TODO: Get program from form data if provided
           programId: body.programId || null,
         }
       })

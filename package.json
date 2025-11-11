@@ -4,9 +4,9 @@
   "private": true,
 
   "scripts": {
-    "dev": "next dev",
+    "dev": "npx ts-node scripts/startup.ts && next dev",
     "build": "next build",
-    "start": "next start",
+    "start": "npx ts-node scripts/startup.ts && next start",
     "lint": "next lint",
     "db:generate": "prisma generate",
     "db:push": "prisma db push",

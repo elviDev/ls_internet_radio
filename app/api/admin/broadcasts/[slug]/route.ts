@@ -11,6 +11,17 @@ const updateBroadcastSchema = z.object({
   endTime: z.string().datetime().optional(),
   streamUrl: z.string().url().optional(),
   bannerId: z.string().optional(),
+  hostId: z.string().optional(),
+  programId: z.string().nullable().optional(),
+  staff: z.array(z.object({
+    userId: z.string(),
+    role: z.enum(["HOST", "CO_HOST", "PRODUCER", "SOUND_ENGINEER", "MODERATOR"])
+  })).optional(),
+  guests: z.array(z.object({
+    name: z.string().min(1, "Guest name is required"),
+    title: z.string().optional(),
+    role: z.string().min(1, "Guest role is required")
+  })).optional(),
 });
 
 export const GET = adminOnly(async (req: Request, { params }: { params: Promise<{ slug: string }> }) => {
@@ -83,6 +94,35 @@ export const PATCH = adminOnly(async (req: Request, { params }: { params: Promis
       return NextResponse.json({ error: "Broadcast not found" }, { status: 404 });
     }
 
+    // Update staff and guests first
+    if (data.staff !== undefined) {
+      await prisma.broadcastStaff.deleteMany({ where: { broadcastId: existingBroadcast.id } })
+      if (data.staff.length > 0) {
+        await prisma.broadcastStaff.createMany({
+          data: data.staff.map(s => ({
+            broadcastId: existingBroadcast.id,
+            userId: s.userId,
+            role: s.role,
+            isActive: true
+          }))
+        })
+      }
+    }
+
+    if (data.guests !== undefined) {
+      await prisma.broadcastGuest.deleteMany({ where: { broadcastId: existingBroadcast.id } })
+      if (data.guests.length > 0) {
+        await prisma.broadcastGuest.createMany({
+          data: data.guests.map(g => ({
+            broadcastId: existingBroadcast.id,
+            name: g.name,
+            title: g.title || null,
+            role: g.role
+          }))
+        })
+      }
+    }
+
     // Update broadcast
     const broadcast = await prisma.liveBroadcast.update({
       where: { slug },
@@ -94,6 +134,8 @@ export const PATCH = adminOnly(async (req: Request, { params }: { params: Promis
         ...(data.endTime && { endTime: new Date(data.endTime) }),
         ...(data.streamUrl !== undefined && { streamUrl: data.streamUrl }),
         ...(data.bannerId !== undefined && { bannerId: data.bannerId }),
+        ...(data.hostId && { hostId: data.hostId }),
+        ...(data.programId !== undefined && { programId: data.programId }),
       },
       include: {
         hostUser: {
@@ -130,6 +172,29 @@ export const PATCH = adminOnly(async (req: Request, { params }: { params: Promis
         guests: true,
       },
     });
+
+    // Sync status changes to corresponding schedule
+    if (data.status) {
+      const scheduleStatus = data.status === "LIVE" ? "ACTIVE" : 
+                           data.status === "ENDED" ? "COMPLETED" : 
+                           data.status === "SCHEDULED" ? "SCHEDULED" : "DRAFT";
+      
+      await prisma.schedule.updateMany({
+        where: { liveBroadcastId: broadcast.id },
+        data: { status: scheduleStatus }
+      });
+    }
+
+    // Sync title and description changes
+    if (data.title || data.description) {
+      await prisma.schedule.updateMany({
+        where: { liveBroadcastId: broadcast.id },
+        data: {
+          ...(data.title && { title: data.title }),
+          ...(data.description && { description: data.description }),
+        }
+      });
+    }
 
     return NextResponse.json(broadcast);
   } catch (error) {

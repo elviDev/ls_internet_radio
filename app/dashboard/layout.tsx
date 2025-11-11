@@ -75,20 +75,27 @@ export default function AdminLayout({
       <DashboardSettingsProvider>
         <div className="min-h-screen bg-slate-50">
           {/* Desktop Sidebar */}
-          <aside className={cn(
-            "hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-all duration-300",
-            sidebarCollapsed ? "lg:w-16" : "lg:w-72"
-          )}>
+          <aside
+            className={cn(
+              "hidden lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:flex-col transition-all duration-300",
+              sidebarCollapsed ? "lg:w-16" : "lg:w-72"
+            )}
+          >
             <div className="flex grow flex-col gap-y-5 overflow-y-auto border-r border-slate-200 bg-white px-6 pb-4">
               <div className="flex h-16 shrink-0 items-center">
-                <Radio className="h-8 w-8 text-blue-600" />
-                {!sidebarCollapsed && (
-                  <span className="ml-2 text-xl font-bold text-slate-900">
-                    BroadcastHub
-                  </span>
-                )}
+                <Link
+                  href="/"
+                  className="flex items-center hover:opacity-80 transition-opacity"
+                >
+                  <Radio className="h-8 w-8 text-brand-500" />
+                  {!sidebarCollapsed && (
+                    <span className="ml-2 text-xl font-bold text-brand-600">
+                      Cinema Book
+                    </span>
+                  )}
+                </Link>
               </div>
-              
+
               {/* Toggle Button */}
               <Button
                 variant="ghost"
@@ -117,23 +124,21 @@ export default function AdminLayout({
                               className={cn(
                                 "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 transition-colors",
                                 isActive
-                                  ? "bg-blue-50 text-blue-600"
-                                  : "text-slate-700 hover:bg-slate-50 hover:text-blue-600",
+                                  ? "bg-brand-50 text-brand-600"
+                                  : "text-slate-700 hover:bg-slate-50 hover:text-brand-600",
                                 sidebarCollapsed ? "justify-center" : ""
                               )}
                               title={sidebarCollapsed ? item.name : undefined}
                             >
                               <item.icon className="h-5 w-5 shrink-0" />
-                              {!sidebarCollapsed && (
-                                <span>{item.name}</span>
-                              )}
+                              {!sidebarCollapsed && <span>{item.name}</span>}
                             </Link>
                           </li>
                         );
                       })}
                     </ul>
                   </li>
-                  
+
                   {/* Bottom Navigation */}
                   <li className="mt-auto">
                     <ul role="list" className="-mx-2 space-y-1">
@@ -148,16 +153,14 @@ export default function AdminLayout({
                               className={cn(
                                 "group flex gap-x-3 rounded-md p-2 text-sm font-semibold leading-6 transition-colors",
                                 isActive
-                                  ? "bg-blue-50 text-blue-600"
-                                  : "text-slate-700 hover:bg-slate-50 hover:text-blue-600",
+                                  ? "bg-brand-50 text-brand-600"
+                                  : "text-slate-700 hover:bg-slate-50 hover:text-brand-600",
                                 sidebarCollapsed ? "justify-center" : ""
                               )}
                               title={sidebarCollapsed ? item.name : undefined}
                             >
                               <item.icon className="h-5 w-5 shrink-0" />
-                              {!sidebarCollapsed && (
-                                <span>{item.name}</span>
-                              )}
+                              {!sidebarCollapsed && <span>{item.name}</span>}
                             </Link>
                           </li>
                         );
@@ -170,34 +173,32 @@ export default function AdminLayout({
           </aside>
 
           {/* Main content */}
-          <div className={cn(
-            "flex flex-col min-h-screen transition-all duration-300",
-            sidebarCollapsed ? "lg:pl-16" : "lg:pl-72"
-          )}>
+          <div
+            className={cn(
+              "flex flex-col min-h-screen transition-all duration-300",
+              sidebarCollapsed ? "lg:pl-16" : "lg:pl-72"
+            )}
+          >
             {/* Dashboard Header */}
             <DashboardHeader />
 
             {/* Page content */}
             <main className="flex-1">
-              <div className="px-4 py-6 sm:px-6 lg:px-8">
-                {children}
-              </div>
+              <div className="px-4 py-6 sm:px-6 lg:px-8">{children}</div>
             </main>
-            
+
             {/* Footer */}
-            <footer className="bg-slate-800 text-white mt-auto">
+            <footer className="bg-brand-800 text-white mt-auto">
               <div className="px-4 py-8 sm:px-6 lg:px-8">
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 mb-8">
+                <div className="grid grid-cols-1 md:grid-c  ols-2 lg:grid-cols-4 gap-8 mb-8">
                   <div>
                     <div className="flex items-center space-x-2 mb-4">
-                      <Radio className="h-8 w-8 text-blue-400" />
-                      <span className="font-bold text-xl">
-                        BroadcastHub
-                      </span>
+                      <Radio className="h-8 w-8 text-white-400" />
+                      <span className="font-bold text-xl">Cinema Book</span>
                     </div>
-                    <p className="text-slate-300 mb-4">
-                      Your premier destination for podcasts, audiobooks, and live
-                      broadcasts that inspire, entertain, and connect.
+                    <p className="text-brand-100 mb-4">
+                      Your premier destination for podcasts, audiobooks, and
+                      live broadcasts that inspire, entertain, and connect.
                     </p>
                   </div>
 
@@ -209,7 +210,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/about"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=" text-white"
                         >
                           About Us
                         </Link>
@@ -217,7 +218,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/programs"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Programs
                         </Link>
@@ -225,7 +226,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/podcasts"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Podcasts
                         </Link>
@@ -233,7 +234,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/events"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Events
                         </Link>
@@ -241,7 +242,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/contact"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Contact
                         </Link>
@@ -257,7 +258,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/help"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Help Center
                         </Link>
@@ -265,7 +266,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/advertise"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Advertise With Us
                         </Link>
@@ -273,7 +274,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/careers"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Careers
                         </Link>
@@ -281,7 +282,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/privacy"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Privacy Policy
                         </Link>
@@ -289,7 +290,7 @@ export default function AdminLayout({
                       <li>
                         <Link
                           href="/terms"
-                          className="text-slate-300 hover:text-white transition-colors"
+                          className=""
                         >
                           Terms of Service
                         </Link>
@@ -301,42 +302,44 @@ export default function AdminLayout({
                     <h3 className="font-semibold text-white text-lg mb-4">
                       Subscribe
                     </h3>
-                    <p className="text-slate-300 mb-4">
-                      Subscribe to our newsletter for updates on new content and events.
+                    <p className="text-brand-100 mb-4">
+                      Subscribe to our newsletter for updates on new content and
+                      events.
                     </p>
                     <form className="space-y-2">
                       <input
                         type="email"
                         placeholder="Your email address"
-                        className="w-full px-3 py-2 bg-slate-700 border border-slate-600 text-white placeholder:text-slate-400 rounded"
+                        className="w-full px-3 py-2 bg-brand-700 border border-brand-600 text-white placeholder:text-brand-200 rounded"
                       />
-                      <button className="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded transition-colors">
+                      <button className="w-full bg-white py-2 px-4 rounded text-teal-800">
                         Subscribe
                       </button>
                     </form>
                   </div>
                 </div>
 
-                <div className="border-t border-slate-700 pt-6 flex flex-col md:flex-row justify-between items-center">
-                  <p className="text-slate-400 text-sm">
-                    © {new Date().getFullYear()} BroadcastHub. All rights reserved.
+                <div className="border-t border-brand-700 pt-6 flex flex-col md:flex-row justify-between items-center">
+                  <p className="text-brand-200 text-sm">
+                    © {new Date().getFullYear()} WaveStream. All rights
+                    reserved.
                   </p>
                   <div className="flex space-x-4 mt-4 md:mt-0">
                     <Link
                       href="/privacy"
-                      className="text-slate-400 hover:text-white text-sm transition-colors"
+                      className="text-brand-200 hover:text-amber-200 text-sm transition-colors"
                     >
                       Privacy
                     </Link>
                     <Link
                       href="/terms"
-                      className="text-slate-400 hover:text-white text-sm transition-colors"
+                      className="text-brand-200 hover:text-amber-200 text-sm transition-colors"
                     >
                       Terms
                     </Link>
                     <Link
                       href="/cookies"
-                      className="text-slate-400 hover:text-white text-sm transition-colors"
+                      className="text-brand-200 hover:text-amber-200 text-sm transition-colors"
                     >
                       Cookies
                     </Link>

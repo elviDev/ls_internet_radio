@@ -48,20 +48,20 @@ type Program = {
 }
 
 const categoryColors = {
-  TALK_SHOW: "bg-blue-100 text-blue-800",
-  MUSIC: "bg-purple-100 text-purple-800",
+  TALK_SHOW: "bg-emerald-100 text-emerald-800",
+  MUSIC: "bg-amber-100 text-amber-800",
   TECHNOLOGY: "bg-green-100 text-green-800",
-  BUSINESS: "bg-orange-100 text-orange-800",
-  INTERVIEW: "bg-pink-100 text-pink-800",
-  SPORTS: "bg-red-100 text-red-800",
+  BUSINESS: "bg-yellow-100 text-yellow-800",
+  INTERVIEW: "bg-teal-100 text-teal-800",
+  SPORTS: "bg-lime-100 text-lime-800",
   NEWS: "bg-gray-100 text-gray-800",
-  ENTERTAINMENT: "bg-yellow-100 text-yellow-800",
-  EDUCATION: "bg-indigo-100 text-indigo-800"
+  ENTERTAINMENT: "bg-amber-100 text-amber-800",
+  EDUCATION: "bg-emerald-100 text-emerald-800"
 }
 
 const statusColors = {
-  ACTIVE: "bg-green-100 text-green-800",
-  INACTIVE: "bg-yellow-100 text-yellow-800",
+  ACTIVE: "bg-emerald-100 text-emerald-800",
+  INACTIVE: "bg-amber-100 text-amber-800",
   ARCHIVED: "bg-gray-100 text-gray-800"
 }
 
@@ -144,12 +144,12 @@ export default function ProgramsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Programs</h1>
-          <p className="text-muted-foreground">
+          <h1 className="text-3xl font-bold tracking-tight text-emerald-900">Programs</h1>
+          <p className="text-emerald-600">
             Manage your radio programs and shows
           </p>
         </div>
-        <Button onClick={() => router.push("/dashboard/programs/new")}>
+        <Button onClick={() => router.push("/dashboard/programs/new")} className="bg-emerald-600 hover:bg-emerald-700">
           <Plus className="h-4 w-4 mr-2" />
           New Program
         </Button>
@@ -325,7 +325,7 @@ export default function ProgramsPage() {
             <p className="text-muted-foreground text-center mb-4">
               Get started by creating your first program
             </p>
-            <Button onClick={() => router.push("/dashboard/programs/new")}>
+            <Button onClick={() => router.push("/dashboard/programs/new")} className="bg-emerald-600 hover:bg-emerald-700">
               <Plus className="h-4 w-4 mr-2" />
               Create Program
             </Button>

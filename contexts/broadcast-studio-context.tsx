@@ -111,11 +111,12 @@ export function BroadcastStudioProvider({ children, broadcastId: broadcastSlug }
         setCurrentListenerCount(0)
         setStartTime(null)
         setBroadcastDuration("00:00:00")
+        setPeakListeners(0)
       } else if (!startTime) {
         setStartTime(new Date())
       }
     }
-  }, [broadcastContext, startTime])
+  }, [broadcastContext?.isStreaming, broadcastContext?.connectionState, broadcastContext?.streamQuality, startTime])
 
   // Timer for live broadcast duration
   useEffect(() => {
@@ -147,7 +148,7 @@ export function BroadcastStudioProvider({ children, broadcastId: broadcastSlug }
   }, [isLive])
 
   const startBroadcast = useCallback(async () => {
-    if (broadcastContext) {
+    if (broadcastContext && !broadcastContext.isStreaming) {
       // First get the actual broadcast ID from the database using slug
       try {
         const response = await fetch(`/api/admin/broadcasts/${broadcastSlug}`);
@@ -178,11 +179,13 @@ export function BroadcastStudioProvider({ children, broadcastId: broadcastSlug }
       } catch (error) {
         console.error('Failed to start broadcast:', error)
       }
+    } else if (broadcastContext?.isStreaming) {
+      console.log('🎙️ Broadcast already active, skipping duplicate start')
     }
   }, [broadcastContext, broadcastSlug])
 
   const stopBroadcast = useCallback(async () => {
-    if (broadcastContext) {
+    if (broadcastContext && broadcastContext.isStreaming) {
       await broadcastContext.stopBroadcast()
       
       // Update database status to ENDED using slug
@@ -196,6 +199,8 @@ export function BroadcastStudioProvider({ children, broadcastId: broadcastSlug }
       } catch (error) {
         console.error('Failed to update broadcast status in database:', error)
       }
+    } else if (broadcastContext && !broadcastContext.isStreaming) {
+      console.log('📻 Broadcast already stopped, skipping duplicate stop')
     }
   }, [broadcastContext, broadcastSlug])
 

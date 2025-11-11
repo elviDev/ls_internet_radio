@@ -140,7 +140,7 @@ export default function DashboardHeader() {
     <header className="bg-white border-b border-slate-200 px-4 py-3 sm:px-6 lg:px-8">
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-4">
-          <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
+          {/* <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1> */}
         </div>
 
         <div className="flex items-center space-x-4">
@@ -167,7 +167,7 @@ export default function DashboardHeader() {
                     variant="ghost" 
                     size="sm" 
                     onClick={markAllAsRead}
-                    className="text-xs text-blue-600 hover:text-blue-700"
+                    className="text-xs text-teal-600 hover:text-teal-700"
                   >
                     Mark all as read
                   </Button>
@@ -211,7 +211,7 @@ export default function DashboardHeader() {
                                 {notification.title}
                               </p>
                               {!notification.read && (
-                                <Dot className="h-4 w-4 text-blue-600 flex-shrink-0" />
+                                <Dot className="h-4 w-4 text-teal-600 flex-shrink-0" />
                               )}
                             </div>
                             <p className={cn(
@@ -243,7 +243,7 @@ export default function DashboardHeader() {
               <Button variant="ghost" className="flex items-center space-x-2 p-2">
                 <Avatar className="h-8 w-8">
                   <AvatarImage src={user?.profilePicture || undefined} alt={user?.name || "User"} />
-                  <AvatarFallback className="bg-blue-600 text-white text-sm">
+                  <AvatarFallback className="bg-teal-600 text-white text-sm">
                     {getUserInitials(user?.name || null)}
                   </AvatarFallback>
                 </Avatar>

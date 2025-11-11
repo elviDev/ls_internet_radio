@@ -15,7 +15,7 @@ import {
   navigationMenuTriggerStyle,
 } from "@/components/ui/navigation-menu";
 import { cn } from "@/lib/utils";
-import { Menu, X, Search } from "lucide-react";
+import { Menu, X, Search, Radio } from "lucide-react";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useMobile } from "@/hooks/use-mobile";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -45,9 +45,10 @@ export default function Header() {
     >
       <div className="container flex items-center justify-between h-16 px-4 mx-auto">
         <Link href="/" className="flex items-center space-x-2">
-          <div className="h-10 w-10 rounded-full bg-brand-500 flex items-center justify-center">
+          {/* <div className="h-10 w-10 rounded-full bg-brand-500 flex items-center justify-center">
             <span className="font-serif text-white text-lg font-bold">CB</span>
-          </div>
+          </div> */}
+          <Radio className="h-8 w-8 text-brand-500" />
           <span
             className={cn(
               "font-serif font-bold text-lg",

@@ -29,11 +29,26 @@ export class RealtimeClient {
   constructor(serverUrl = 'http://localhost:3001') {
     this.serverUrl = serverUrl
     this.socket = io(serverUrl, {
-      transports: ['websocket', 'polling'],
+      transports: ['websocket'],
       autoConnect: true,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000
+      reconnectionAttempts: 3,
+      reconnectionDelay: 2000,
+      forceNew: false,
+      timeout: 10000
+    })
+    
+    // Add connection debugging
+    this.socket.on('connect', () => {
+      console.log('🔗 RealtimeClient connected:', this.socket.id)
+    })
+    
+    this.socket.on('disconnect', (reason) => {
+      console.log('❌ RealtimeClient disconnected:', reason)
+    })
+    
+    this.socket.on('connect_error', (error) => {
+      console.error('❌ RealtimeClient connection error:', error.message)
     })
   }
 

@@ -82,7 +82,7 @@ export default function AdminDashboardPage() {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-center">
-          <div className="h-8 w-8 border-2 border-purple-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
+          <div className="h-8 w-8 border-2 border-emerald-600 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading dashboard...</p>
         </div>
       </div>
@@ -96,7 +96,7 @@ export default function AdminDashboardPage() {
               <p className="text-muted-foreground">Welcome back to your admin dashboard!</p>
             </div>
             <div className="flex gap-2">
-              <Button className="bg-purple-600 hover:bg-purple-700">
+              <Button className="bg-emerald-600 hover:bg-emerald-700">
                 <Mic className="h-4 w-4 mr-2" /> Start Broadcast
               </Button>
               <Button variant="outline">
@@ -183,7 +183,7 @@ export default function AdminDashboardPage() {
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
-                      <Headphones className="h-6 w-6 text-purple-600" />
+                      <Headphones className="h-6 w-6 text-emerald-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">
@@ -196,7 +196,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
-                      <Mic className="h-6 w-6 text-purple-600" />
+                      <Mic className="h-6 w-6 text-emerald-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">Tech Talk Weekly</h4>
@@ -207,7 +207,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
-                      <BookOpen className="h-6 w-6 text-purple-600" />
+                      <BookOpen className="h-6 w-6 text-amber-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">The Mystery Hour</h4>
@@ -218,7 +218,7 @@ export default function AdminDashboardPage() {
                   </div>
                   <div className="flex items-center gap-4">
                     <div className="h-12 w-12 rounded bg-muted flex items-center justify-center">
-                      <Radio className="h-6 w-6 text-purple-600" />
+                      <Radio className="h-6 w-6 text-emerald-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">
@@ -241,7 +241,7 @@ export default function AdminDashboardPage() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  <div className="border-l-2 border-purple-600 pl-4 py-1">
+                  <div className="border-l-2 border-emerald-600 pl-4 py-1">
                     <p className="text-sm">
                       New podcast uploaded: "Tech Talk Weekly #45"
                     </p>
@@ -283,8 +283,8 @@ export default function AdminDashboardPage() {
               <CardContent>
                 <div className="space-y-4">
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-purple-600" />
+                    <div className="h-10 w-10 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">
@@ -299,8 +299,8 @@ export default function AdminDashboardPage() {
                     </Button>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-purple-600" />
+                    <div className="h-10 w-10 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">Tech Talk Weekly</h4>
@@ -313,8 +313,8 @@ export default function AdminDashboardPage() {
                     </Button>
                   </div>
                   <div className="flex items-center gap-4">
-                    <div className="h-10 w-10 rounded bg-purple-100 dark:bg-purple-900/30 flex items-center justify-center">
-                      <Clock className="h-5 w-5 text-purple-600" />
+                    <div className="h-10 w-10 rounded bg-emerald-100 dark:bg-emerald-900/30 flex items-center justify-center">
+                      <Clock className="h-5 w-5 text-emerald-600" />
                     </div>
                     <div className="flex-1">
                       <h4 className="text-sm font-medium">Weekend Music Mix</h4>

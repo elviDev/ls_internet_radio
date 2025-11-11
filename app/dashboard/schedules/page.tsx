@@ -62,6 +62,18 @@ type Schedule = {
   event?: any
   campaign?: any
   advertisement?: any
+  liveBroadcast?: {
+    id: string
+    slug: string
+    status: string
+    streamUrl?: string
+    hostUser: {
+      id: string
+      firstName: string
+      lastName: string
+      email: string
+    }
+  }
   createdAt: string
   updatedAt: string
 }
@@ -248,53 +260,53 @@ export default function SchedulesPage() {
     const TypeIcon = typeConfig.icon
 
     return (
-      <Card className="hover:shadow-md transition-shadow">
+      <Card className="hover:shadow-md transition-shadow h-full flex flex-col">
         <CardHeader className="pb-3">
-          <div className="flex items-start justify-between">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${typeConfig.color} text-white`}>
+          <div className="flex items-start justify-between gap-2">
+            <div className="flex items-start gap-3 min-w-0 flex-1">
+              <div className={`p-2 rounded-lg ${typeConfig.color} text-white shrink-0`}>
                 <TypeIcon className="h-4 w-4" />
               </div>
-              <div>
-                <CardTitle className="text-lg">{schedule.title}</CardTitle>
-                <CardDescription className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className={statusColors[schedule.status as keyof typeof statusColors]}>
+              <div className="min-w-0 flex-1">
+                <CardTitle className="text-base font-semibold truncate">{schedule.title}</CardTitle>
+                <div className="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 mt-1">
+                  <Badge variant="outline" className={`${statusColors[schedule.status as keyof typeof statusColors]} text-xs w-fit`}>
                     <StatusIcon className="h-3 w-3 mr-1" />
                     {schedule.status}
                   </Badge>
-                  <span className="text-sm text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     {typeConfig.label}
                   </span>
-                </CardDescription>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-1">
-              <Button variant="ghost" size="icon" onClick={() => router.push(`/dashboard/schedules/${schedule.id}`)}>
-                <Eye className="h-4 w-4" />
+            <div className="flex items-center gap-1 shrink-0">
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => router.push(`/dashboard/schedules/${schedule.id}`)}>
+                <Eye className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => router.push(`/dashboard/schedules/${schedule.id}/edit`)}>
-                <Edit className="h-4 w-4" />
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => router.push(`/dashboard/schedules/${schedule.id}/edit`)}>
+                <Edit className="h-3 w-3" />
               </Button>
-              <Button variant="ghost" size="icon" onClick={() => handleDeleteSchedule(schedule.id)}>
-                <Trash2 className="h-4 w-4" />
+              <Button variant="ghost" size="sm" className="h-8 w-8 p-0" onClick={() => handleDeleteSchedule(schedule.id)}>
+                <Trash2 className="h-3 w-3" />
               </Button>
             </div>
           </div>
         </CardHeader>
-        <CardContent className="pt-0">
-          <div className="space-y-3">
+        <CardContent className="pt-0 flex-1 flex flex-col">
+          <div className="space-y-3 flex-1">
             <p className="text-sm text-muted-foreground line-clamp-2">
               {schedule.description}
             </p>
             
-            <div className="grid grid-cols-2 gap-4 text-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-muted-foreground" />
-                <span>{formatDateTime(schedule.startTime)}</span>
+            <div className="space-y-2">
+              <div className="flex items-center gap-2 text-sm">
+                <Clock className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate">{formatDateTime(schedule.startTime)}</span>
               </div>
               {schedule.duration && (
-                <div className="flex items-center gap-2">
-                  <CalendarDays className="h-4 w-4 text-muted-foreground" />
+                <div className="flex items-center gap-2 text-sm">
+                  <CalendarDays className="h-4 w-4 text-muted-foreground shrink-0" />
                   <span>{formatDuration(schedule.duration)}</span>
                 </div>
               )}
@@ -302,11 +314,11 @@ export default function SchedulesPage() {
 
             {schedule.assignee && (
               <div className="flex items-center gap-2 text-sm">
-                <User className="h-4 w-4 text-muted-foreground" />
-                <span>
+                <User className="h-4 w-4 text-muted-foreground shrink-0" />
+                <span className="truncate">
                   {schedule.assignee.firstName} {schedule.assignee.lastName}
                 </span>
-                <Badge variant="secondary" className="text-xs">
+                <Badge variant="secondary" className="text-xs shrink-0">
                   {schedule.assignee.role}
                 </Badge>
               </div>
@@ -314,49 +326,94 @@ export default function SchedulesPage() {
 
             {schedule.tags && (
               <div className="flex flex-wrap gap-1">
-                {schedule.tags.split(",").map((tag, index) => (
+                {schedule.tags.split(",").slice(0, 3).map((tag, index) => (
                   <Badge key={index} variant="outline" className="text-xs">
                     {tag.trim()}
                   </Badge>
                 ))}
+                {schedule.tags.split(",").length > 3 && (
+                  <Badge variant="outline" className="text-xs">
+                    +{schedule.tags.split(",").length - 3}
+                  </Badge>
+                )}
               </div>
             )}
+          </div>
 
-            <div className="flex items-center justify-between pt-2 border-t">
-              <span className="text-xs text-muted-foreground">
+          <div className="pt-3 border-t mt-3">
+            <div className="flex flex-col gap-2">
+              <span className="text-xs text-muted-foreground truncate">
                 Created by {schedule.creator.firstName} {schedule.creator.lastName}
               </span>
-              <div className="flex items-center gap-2">
-                {/* Quick Status Toggle */}
-                {schedule.status === "DRAFT" && (
-                  <Button 
-                    size="sm" 
-                    onClick={() => handleStatusToggle(schedule.id, "SCHEDULED")}
-                    className="h-6 text-xs bg-blue-600 hover:bg-blue-700"
-                  >
-                    Publish
-                  </Button>
+              
+              <div className="flex flex-wrap gap-1">
+                {/* Live Broadcast Actions */}
+                {schedule.type === "LIVE_BROADCAST" && schedule.liveBroadcast && (
+                  <>
+                    {schedule.liveBroadcast.status === "SCHEDULED" && (
+                      <Button 
+                        size="sm" 
+                        onClick={() => router.push(`/dashboard/broadcasts/${schedule.liveBroadcast?.slug}/studio`)}
+                        className="h-7 text-xs bg-green-600 hover:bg-green-700"
+                      >
+                        Go Live
+                      </Button>
+                    )}
+                    {schedule.liveBroadcast.status === "LIVE" && (
+                      <Button 
+                        size="sm" 
+                        onClick={() => router.push(`/dashboard/broadcasts/${schedule.liveBroadcast?.slug}/studio`)}
+                        className="h-7 text-xs bg-red-600 hover:bg-red-700 animate-pulse"
+                      >
+                        Studio
+                      </Button>
+                    )}
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => router.push(`/dashboard/broadcasts/${schedule.liveBroadcast?.slug}`)}
+                      className="h-7 text-xs"
+                    >
+                      View
+                    </Button>
+                  </>
                 )}
-                {schedule.status === "SCHEDULED" && (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleStatusToggle(schedule.id, "ACTIVE")}
-                    className="h-6 text-xs border-green-600 text-green-600 hover:bg-green-50"
-                  >
-                    Activate
-                  </Button>
+                
+                {/* Regular Schedule Actions */}
+                {schedule.type !== "LIVE_BROADCAST" && (
+                  <>
+                    {schedule.status === "DRAFT" && (
+                      <Button 
+                        size="sm" 
+                        onClick={() => handleStatusToggle(schedule.id, "SCHEDULED")}
+                        className="h-7 text-xs bg-blue-600 hover:bg-blue-700"
+                      >
+                        Publish
+                      </Button>
+                    )}
+                    {schedule.status === "SCHEDULED" && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleStatusToggle(schedule.id, "ACTIVE")}
+                        className="h-7 text-xs border-green-600 text-green-600 hover:bg-green-50"
+                      >
+                        Activate
+                      </Button>
+                    )}
+                    {schedule.status === "ACTIVE" && (
+                      <Button 
+                        size="sm" 
+                        variant="outline"
+                        onClick={() => handleStatusToggle(schedule.id, "COMPLETED")}
+                        className="h-7 text-xs border-emerald-600 text-emerald-600 hover:bg-emerald-50"
+                      >
+                        Complete
+                      </Button>
+                    )}
+                  </>
                 )}
-                {schedule.status === "ACTIVE" && (
-                  <Button 
-                    size="sm" 
-                    variant="outline"
-                    onClick={() => handleStatusToggle(schedule.id, "COMPLETED")}
-                    className="h-6 text-xs border-emerald-600 text-emerald-600 hover:bg-emerald-50"
-                  >
-                    Complete
-                  </Button>
-                )}
+                
                 {schedule.priority > 0 && (
                   <Badge variant="destructive" className="text-xs">
                     Priority {schedule.priority}
@@ -504,7 +561,7 @@ export default function SchedulesPage() {
             </div>
           ) : schedules.length > 0 ? (
             <>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                 {schedules.map((schedule) => (
                   <ScheduleCard key={schedule.id} schedule={schedule} />
                 ))}

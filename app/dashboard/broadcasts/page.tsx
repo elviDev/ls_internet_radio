@@ -120,10 +120,16 @@ type Program = {
 
 async function fetchBroadcasts(programId?: string | null) {
   try {
-    const params = new URLSearchParams()
-    if (programId) {
+    // Fetch directly from broadcasts API to get all broadcasts
+    const params = new URLSearchParams({
+      perPage: '100'
+    })
+    if (programId && programId !== "null") {
       params.set('programId', programId)
+    } else if (programId === "null") {
+      params.set('programId', 'null')
     }
+    
     const response = await fetch(`/api/admin/broadcasts?${params}`)
     if (!response.ok) {
       if (response.status === 403) {
@@ -134,7 +140,10 @@ async function fetchBroadcasts(programId?: string | null) {
         throw new Error(`Failed to fetch broadcasts (${response.status})`)
       }
     }
-    return await response.json()
+    const data = await response.json()
+    console.log('Fetched broadcasts directly:', data.broadcasts?.length || 0, 'broadcasts')
+    console.log('Sample broadcast data:', data.broadcasts?.[0])
+    return { broadcasts: data.broadcasts || [] }
   } catch (error) {
     console.error('Error fetching broadcasts:', error)
     toast.error(error instanceof Error ? error.message : 'Failed to load broadcasts')
@@ -248,6 +257,11 @@ export default function BroadcastsPage() {
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false)
   const [editingBroadcast, setEditingBroadcast] = useState(false)
   const [selectedBroadcast, setSelectedBroadcast] = useState<Broadcast | null>(null)
+  
+  // Delete confirmation state
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false)
+  const [broadcastToDelete, setBroadcastToDelete] = useState<Broadcast | null>(null)
+  const [isDeleting, setIsDeleting] = useState(false)
   const [editForm, setEditForm] = useState({
     title: "",
     description: "",
@@ -255,8 +269,14 @@ export default function BroadcastsPage() {
     endTime: "",
     streamUrl: "",
     bannerId: "",
-    bannerFile: null as File | null
+    bannerFile: null as File | null,
+    hostId: "",
+    programId: "",
+    staff: [] as { userId: string; role: string }[],
+    guests: [] as { name: string; title?: string; role: string }[]
   })
+  const [editStaffForm, setEditStaffForm] = useState({ userId: "", role: "" })
+  const [editGuestForm, setEditGuestForm] = useState({ name: "", title: "", role: "" })
 
   useEffect(() => {
     loadInitialData()
@@ -335,7 +355,11 @@ export default function BroadcastsPage() {
       endTime: broadcast.endTime ? formatForDatetimeLocal(broadcast.endTime) : "",
       streamUrl: broadcast.streamUrl || "",
       bannerId: broadcast.banner?.id || "",
-      bannerFile: null
+      bannerFile: null,
+      hostId: broadcast.hostUser?.id || "",
+      programId: broadcast.program?.id || "no-program",
+      staff: broadcast.staff?.map(s => ({ userId: s.user.id, role: s.role })) || [],
+      guests: broadcast.guests?.map(g => ({ name: g.name, title: g.title, role: g.role })) || []
     })
     setIsEditDialogOpen(true)
   }
@@ -382,23 +406,30 @@ export default function BroadcastsPage() {
       
       setUploadProgress(80)
 
+      const updateData = {
+        title: editForm.title.trim(),
+        description: editForm.description.trim(),
+        startTime: new Date(editForm.startTime).toISOString(),
+        endTime: editForm.endTime ? new Date(editForm.endTime).toISOString() : undefined,
+        streamUrl: (editForm.streamUrl || "").trim() || undefined,
+        bannerId: finalBannerId,
+        hostId: editForm.hostId,
+        programId: editForm.programId && editForm.programId !== "no-program" ? editForm.programId : null,
+        staff: editForm.staff,
+        guests: editForm.guests,
+      }
+      console.log('Sending update data:', updateData)
+
       const response = await fetch(`/api/admin/broadcasts/${selectedBroadcast.slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: editForm.title.trim(),
-          description: editForm.description.trim(),
-          startTime: new Date(editForm.startTime).toISOString(),
-          endTime: editForm.endTime ? new Date(editForm.endTime).toISOString() : undefined,
-          streamUrl: editForm.streamUrl.trim() || undefined,
-          bannerId: finalBannerId,
-        }),
+        body: JSON.stringify(updateData),
       })
 
       if (response.ok) {
         setUploadProgress(100)
         const updatedBroadcast = await response.json()
-        setBroadcasts(prev => prev.map(b => b.id === updatedBroadcast.id ? updatedBroadcast : b))
+        console.log('Updated broadcast response:', updatedBroadcast)
         setIsEditDialogOpen(false)
         setSelectedBroadcast(null)
         setUploadProgress(0)
@@ -409,12 +440,20 @@ export default function BroadcastsPage() {
           endTime: "",
           streamUrl: "",
           bannerId: "",
-          bannerFile: null
+          bannerFile: null,
+          hostId: "",
+          programId: "no-program",
+          staff: [],
+          guests: []
         })
+        setEditStaffForm({ userId: "", role: "" })
+        setEditGuestForm({ name: "", title: "", role: "" })
         toast.success('Broadcast updated successfully')
+        loadBroadcasts()
       } else {
         const error = await response.json()
-        toast.error(error.error || 'Failed to update broadcast')
+        console.error('Update error response:', error)
+        toast.error(typeof error.error === 'string' ? error.error : 'Failed to update broadcast')
       }
     } catch (error) {
       console.error('Error updating broadcast:', error)
@@ -428,10 +467,11 @@ export default function BroadcastsPage() {
 
   const filteredBroadcasts = broadcasts.filter((broadcast) => {
     const matchesFilter = filter === "all" || broadcast.status === filter
+    const searchLower = searchQuery.toLowerCase()
     const matchesSearch =
-      broadcast.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      (broadcast.hostUser ? `${broadcast.hostUser.firstName} ${broadcast.hostUser.lastName}`.toLowerCase().includes(searchQuery.toLowerCase()) : false) ||
-      (broadcast.program ? broadcast.program.title.toLowerCase().includes(searchQuery.toLowerCase()) : false)
+      (broadcast.title || "").toLowerCase().includes(searchLower) ||
+      (broadcast.hostUser ? `${broadcast.hostUser.firstName || ""} ${broadcast.hostUser.lastName || ""}`.toLowerCase().includes(searchLower) : false) ||
+      (broadcast.program ? (broadcast.program.title || "").toLowerCase().includes(searchLower) : false)
     
     const matchesProgram = programFilter === "all" || 
       (programFilter === "null" && !broadcast.program) ||
@@ -451,14 +491,14 @@ export default function BroadcastsPage() {
         )
       case "SCHEDULED":
         return (
-          <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+          <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
             <Clock className="h-3 w-3 mr-1" />
             Scheduled
           </Badge>
         )
       case "READY":
         return (
-          <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">
+          <Badge variant="outline" className="bg-amber-50 text-amber-700 border-amber-200">
             <Settings className="h-3 w-3 mr-1" />
             Ready
           </Badge>
@@ -526,11 +566,17 @@ export default function BroadcastsPage() {
         endDateTime.setHours(parseInt(newBroadcast.endTimeHour), parseInt(newBroadcast.endTimeMinute))
       }
 
+      // Validate required fields
+      if (!newBroadcast.title.trim() || !newBroadcast.description.trim() || !newBroadcast.hostId || !startDateTime) {
+        toast.error('Please fill in all required fields including start date and time')
+        return
+      }
+
       const broadcastData = {
         title: newBroadcast.title,
         description: newBroadcast.description,
         hostId: newBroadcast.hostId,
-        startTime: startDateTime?.toISOString(),
+        startTime: startDateTime.toISOString(),
         endTime: endDateTime?.toISOString(),
         bannerId: finalBannerId,
         programId: newBroadcast.programId && newBroadcast.programId !== "no-program" ? newBroadcast.programId : undefined,
@@ -598,6 +644,41 @@ export default function BroadcastsPage() {
     }
   }
 
+  const openDeleteDialog = (broadcast: Broadcast) => {
+    if (broadcast.status === 'LIVE') {
+      toast.error('Cannot delete a live broadcast')
+      return
+    }
+    setBroadcastToDelete(broadcast)
+    setIsDeleteDialogOpen(true)
+  }
+
+  const handleDeleteBroadcast = async () => {
+    if (!broadcastToDelete) return
+
+    setIsDeleting(true)
+    try {
+      const response = await fetch(`/api/admin/broadcasts/${broadcastToDelete.slug}`, {
+        method: 'DELETE',
+      })
+
+      if (response.ok) {
+        toast.success('Broadcast deleted successfully')
+        setIsDeleteDialogOpen(false)
+        setBroadcastToDelete(null)
+        loadBroadcasts()
+      } else {
+        const error = await response.json()
+        toast.error(error.error || 'Failed to delete broadcast')
+      }
+    } catch (error) {
+      console.error('Error deleting broadcast:', error)
+      toast.error('Failed to delete broadcast')
+    } finally {
+      setIsDeleting(false)
+    }
+  }
+
   const addStaffMember = () => {
     if (staffForm.userId && staffForm.role) {
       // Check if this person already has this role
@@ -643,6 +724,50 @@ export default function BroadcastsPage() {
     })
   }
 
+  // Edit form helpers
+  const addEditStaffMember = () => {
+    if (editStaffForm.userId && editStaffForm.role) {
+      if (!editForm.staff.find(s => s.userId === editStaffForm.userId && s.role === editStaffForm.role)) {
+        const roleCount = editForm.staff.filter(s => s.role === editStaffForm.role).length
+        if (roleCount < 5) {
+          setEditForm({
+            ...editForm,
+            staff: [...editForm.staff, { userId: editStaffForm.userId, role: editStaffForm.role }]
+          })
+          setEditStaffForm({ userId: "", role: "" })
+        }
+      }
+    }
+  }
+
+  const removeEditStaffMember = (userId: string, role: string) => {
+    setEditForm({
+      ...editForm,
+      staff: editForm.staff.filter(s => !(s.userId === userId && s.role === role))
+    })
+  }
+
+  const addEditGuest = () => {
+    if (editGuestForm.name.trim() && editGuestForm.role.trim()) {
+      setEditForm({
+        ...editForm,
+        guests: [...editForm.guests, { 
+          name: editGuestForm.name.trim(), 
+          title: editGuestForm.title.trim() || undefined, 
+          role: editGuestForm.role.trim() 
+        }]
+      })
+      setEditGuestForm({ name: "", title: "", role: "" })
+    }
+  }
+
+  const removeEditGuest = (index: number) => {
+    setEditForm({
+      ...editForm,
+      guests: editForm.guests.filter((_, i) => i !== index)
+    })
+  }
+
   const getRoleIcon = (role: string) => {
     switch (role) {
       case "HOST": return Crown
@@ -657,14 +782,22 @@ export default function BroadcastsPage() {
 
   const getRoleColor = (role: string) => {
     switch (role) {
-      case "HOST": return "bg-purple-100 text-purple-800 border-purple-200"
-      case "CO_HOST": return "bg-blue-100 text-blue-800 border-blue-200"
+      case "HOST": return "bg-amber-100 text-amber-800 border-amber-200"
+      case "CO_HOST": return "bg-emerald-100 text-emerald-800 border-emerald-200"
       case "PRODUCER": return "bg-green-100 text-green-800 border-green-200"
-      case "SOUND_ENGINEER": return "bg-orange-100 text-orange-800 border-orange-200"
-      case "GUEST": return "bg-gray-100 text-gray-800 border-gray-200"
-      case "MODERATOR": return "bg-indigo-100 text-indigo-800 border-indigo-200"
+      case "SOUND_ENGINEER": return "bg-yellow-100 text-yellow-800 border-yellow-200"
+      case "GUEST": return "bg-teal-100 text-teal-800 border-teal-200"
+      case "MODERATOR": return "bg-lime-100 text-lime-800 border-lime-200"
       default: return "bg-gray-100 text-gray-800 border-gray-200"
     }
+  }
+
+  console.log('Total broadcasts loaded:', broadcasts.length)
+  console.log('Filtered broadcasts shown:', filteredBroadcasts.length)
+  if (broadcasts.length > 0) {
+    console.log('Sample broadcast:', broadcasts[0])
+    console.log('Staff in first broadcast:', broadcasts[0]?.staff)
+    console.log('Guests in first broadcast:', broadcasts[0]?.guests)
   }
 
   return (
@@ -672,12 +805,12 @@ export default function BroadcastsPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold text-slate-900">Broadcasts</h1>
-          <p className="text-slate-500 mt-1">Manage live and scheduled broadcasts</p>
+          <h1 className="text-3xl font-bold text-emerald-900">Broadcasts</h1>
+          <p className="text-emerald-600 mt-1">Manage live and scheduled broadcasts</p>
         </div>
         <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
           <DialogTrigger asChild>
-            <Button className="flex items-center gap-2">
+            <Button className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white">
               <Plus className="h-4 w-4" />
               New Broadcast
             </Button>
@@ -1210,11 +1343,11 @@ export default function BroadcastsPage() {
                               <div className="flex items-center gap-2">
                                 <span className="font-medium">{guest.name}</span>
                                 {guest.title && (
-                                  <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-200">
+                                  <Badge variant="outline" className="text-xs bg-amber-100 text-amber-800 border-amber-200">
                                     {guest.title}
                                   </Badge>
                                 )}
-                                <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200 flex items-center gap-1">
+                                <Badge variant="outline" className="bg-emerald-100 text-emerald-800 border-emerald-200 flex items-center gap-1">
                                   <UserCheck className="h-3 w-3" />
                                   {guest.role}
                                 </Badge>
@@ -1241,7 +1374,7 @@ export default function BroadcastsPage() {
               <Button variant="outline" onClick={() => setIsCreateDialogOpen(false)} disabled={creating || uploadingAsset}>
                 Cancel
               </Button>
-              <Button onClick={handleCreateBroadcast} disabled={creating || uploadingAsset || !newBroadcast.title.trim() || !newBroadcast.description.trim()}>
+              <Button onClick={handleCreateBroadcast} disabled={creating || uploadingAsset || !newBroadcast.title.trim() || !newBroadcast.description.trim() || !newBroadcast.hostId || !newBroadcast.startTime}>
                 {creating || uploadingAsset ? (
                   <>
                     <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -1282,13 +1415,13 @@ export default function BroadcastsPage() {
         {/* Program Filter */}
         {!programIdFromUrl && (
           <div className="flex items-center gap-4">
-            <label className="text-sm font-medium text-slate-700">Filter by Program:</label>
+            <label className="text-sm font-medium text-emerald-700">Filter by Program:</label>
             <Select value={programFilter} onValueChange={(value: string) => {
               setProgramFilter(value)
               if (value === "all") {
                 loadBroadcasts()
               } else {
-                loadBroadcasts(value === "null" ? "null" : value)
+                loadBroadcasts(value)
               }
             }}>
               <SelectTrigger className="w-64">
@@ -1328,14 +1461,24 @@ export default function BroadcastsPage() {
                   <div className="flex items-center gap-2 mb-2">
                     {getStatusBadge(broadcast.status)}
                     {broadcast.program && (
-                      <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">
+                      <Badge variant="outline" className="bg-emerald-50 text-emerald-700 border-emerald-200">
                         <Radio className="h-3 w-3 mr-1" />
                         {broadcast.program.title}
                       </Badge>
                     )}
                   </div>
-                  <CardTitle className="text-lg">{broadcast.title}</CardTitle>
-                  <CardDescription className="mt-1">{broadcast.description}</CardDescription>
+                  <CardTitle 
+                    className="text-lg cursor-pointer hover:text-blue-600 transition-colors"
+                    onClick={() => router.push(`/dashboard/broadcasts/${broadcast.slug}`)}
+                  >
+                    {broadcast.title}
+                  </CardTitle>
+                  <CardDescription className="mt-1">
+                    {broadcast.description.length > 100 
+                      ? `${broadcast.description.substring(0, 100)}...` 
+                      : broadcast.description
+                    }
+                  </CardDescription>
                 </div>
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -1370,7 +1513,10 @@ export default function BroadcastsPage() {
                         Enter Studio
                       </DropdownMenuItem>
                     )}
-                    <DropdownMenuItem className="text-red-600">
+                    <DropdownMenuItem 
+                      className="text-red-600"
+                      onClick={() => openDeleteDialog(broadcast)}
+                    >
                       <Trash className="h-4 w-4 mr-2" />
                       Delete
                     </DropdownMenuItem>
@@ -1388,7 +1534,7 @@ export default function BroadcastsPage() {
                   <div className="flex-1">
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-medium">{broadcast.hostUser ? `${broadcast.hostUser.firstName} ${broadcast.hostUser.lastName}` : "Unknown Host"}</span>
-                      <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-200 flex items-center gap-1">
+                      <Badge variant="outline" className="bg-amber-100 text-amber-800 border-amber-200 flex items-center gap-1">
                         <Crown className="h-3 w-3" />
                         HOST
                       </Badge>
@@ -1454,13 +1600,13 @@ export default function BroadcastsPage() {
               <div className="space-y-2">
                 {broadcast.program && (
                   <div className="flex items-center gap-2 text-sm">
-                    <Radio className="h-4 w-4 text-blue-600" />
-                    <span className="font-medium text-blue-600">Part of {broadcast.program.title}</span>
+                    <Radio className="h-4 w-4 text-emerald-600" />
+                    <span className="font-medium text-emerald-600">Part of {broadcast.program.title}</span>
                     <Button 
                       variant="ghost" 
                       size="sm" 
                       onClick={() => router.push(`/dashboard/programs/${broadcast.program!.id}`)}
-                      className="h-6 px-2 text-xs text-blue-600 hover:text-blue-700"
+                      className="h-6 px-2 text-xs text-emerald-600 hover:text-emerald-700"
                     >
                       View Program
                       <ExternalLink className="h-3 w-3 ml-1" />
@@ -1482,7 +1628,7 @@ export default function BroadcastsPage() {
 
               {broadcast.status === "LIVE" && (
                 <div className="flex items-center justify-between pt-2 border-t">
-                  <div className="text-sm font-semibold text-green-600">
+                  <div className="text-sm font-semibold text-emerald-600">
                     🔴 Broadcasting Now
                   </div>
                   <Button size="sm" onClick={() => router.push(`/dashboard/broadcasts/${broadcast.slug}/studio`)}>
@@ -1502,7 +1648,7 @@ export default function BroadcastsPage() {
 
               {broadcast.status === "READY" && (
                 <div className="flex items-center justify-between pt-2 border-t">
-                  <div className="text-sm font-semibold text-yellow-600">
+                  <div className="text-sm font-semibold text-amber-600">
                     🎬 Studio Ready
                   </div>
                   <Button size="sm" onClick={() => router.push(`/dashboard/broadcasts/${broadcast.slug}/studio`)}>
@@ -1539,13 +1685,17 @@ export default function BroadcastsPage() {
             endTime: "",
             streamUrl: "",
             bannerId: "",
-            bannerFile: null
+            bannerFile: null,
+            hostId: "",
+            programId: "",
+            staff: [],
+            guests: []
           })
           setSelectedBroadcast(null)
           setUploadProgress(0)
         }
       }}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Edit className="h-5 w-5" />
@@ -1555,7 +1705,7 @@ export default function BroadcastsPage() {
               Update your broadcast details and schedule
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
+          <div className="space-y-4 py-4 overflow-y-auto overflow-x-hidden flex-1">
             <div className="space-y-2">
               <Label htmlFor="edit-title">Broadcast Title *</Label>
               <Input
@@ -1604,6 +1754,54 @@ export default function BroadcastsPage() {
                 onChange={(e) => setEditForm({ ...editForm, streamUrl: e.target.value })}
                 placeholder="https://your-stream-url.com"
               />
+            </div>
+            
+            {/* Host Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-host">Primary Host</Label>
+              <Select value={editForm.hostId} onValueChange={(value: string) => setEditForm({ ...editForm, hostId: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select primary host" />
+                </SelectTrigger>
+                <SelectContent>
+                  {staff.map((member) => (
+                    <SelectItem key={member.id} value={member.id}>
+                      <div className="flex items-center gap-2">
+                        <Avatar className="h-6 w-6">
+                          <AvatarFallback className="text-xs">{`${member.firstName} ${member.lastName}`.substring(0, 2)}</AvatarFallback>
+                        </Avatar>
+                        <span>{`${member.firstName} ${member.lastName}`}</span>
+                        <Badge variant="outline" className="ml-auto">
+                          {member.role}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Program Association */}
+            <div className="space-y-2">
+              <Label htmlFor="edit-program">Associated Program</Label>
+              <Select value={editForm.programId} onValueChange={(value: string) => setEditForm({ ...editForm, programId: value })}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select program" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="no-program">No Program</SelectItem>
+                  {programs.map((program) => (
+                    <SelectItem key={program.id} value={program.id}>
+                      <div className="flex items-center gap-2">
+                        <span>{program.title}</span>
+                        <Badge variant="outline" className="ml-auto text-xs">
+                          {program.category.replace('_', ' ')}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
 
             {/* Banner Selection for Edit */}
@@ -1767,8 +1965,141 @@ export default function BroadcastsPage() {
                 </div>
               )}
             </div>
+
+            {/* Staff Management */}
+            <div className="space-y-4 border-t pt-4">
+              <Label>Broadcast Team</Label>
+              <div className="grid grid-cols-1 gap-3 p-4 border rounded-lg bg-slate-50">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <Select value={editStaffForm.userId} onValueChange={(value: string) => setEditStaffForm({ ...editStaffForm, userId: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select team member" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {staff.map((member) => (
+                        <SelectItem key={member.id} value={member.id}>
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-6 w-6">
+                              <AvatarFallback className="text-xs">{`${member.firstName} ${member.lastName}`.substring(0, 2)}</AvatarFallback>
+                            </Avatar>
+                            <span>{`${member.firstName} ${member.lastName}`}</span>
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Select value={editStaffForm.role} onValueChange={(value: string) => setEditStaffForm({ ...editStaffForm, role: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {["HOST", "CO_HOST", "PRODUCER", "SOUND_ENGINEER", "MODERATOR"].map((role) => {
+                        const Icon = getRoleIcon(role)
+                        const roleCount = editForm.staff.filter(s => s.role === role).length
+                        return (
+                          <SelectItem key={role} value={role} disabled={roleCount >= 5}>
+                            <div className="flex items-center gap-2">
+                              <Icon className="h-4 w-4" />
+                              <span>{role.replace('_', ' ')}</span>
+                            </div>
+                          </SelectItem>
+                        )
+                      })}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" variant="outline" onClick={addEditStaffMember} disabled={!editStaffForm.userId || !editStaffForm.role}>
+                  <Plus className="h-4 w-4 mr-2" />Add Team Member
+                </Button>
+              </div>
+              {editForm.staff.length > 0 && (
+                <div className="space-y-2">
+                  {editForm.staff.map((staffAssignment, index) => {
+                    const member = staff.find(s => s.id === staffAssignment.userId)
+                    const Icon = getRoleIcon(staffAssignment.role)
+                    return (
+                      <div key={`${staffAssignment.userId}-${staffAssignment.role}-${index}`} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                        <div className="flex items-center gap-3">
+                          <Avatar className="h-8 w-8">
+                            <AvatarFallback className="text-xs">{member ? `${member.firstName} ${member.lastName}`.substring(0, 2) : "??"}</AvatarFallback>
+                          </Avatar>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-medium">{member ? `${member.firstName} ${member.lastName}` : "Unknown"}</span>
+                              <Badge variant="outline" className={`${getRoleColor(staffAssignment.role)} flex items-center gap-1`}>
+                                <Icon className="h-3 w-3" />
+                                {staffAssignment.role.replace('_', ' ')}
+                              </Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <Button type="button" variant="ghost" size="icon" onClick={() => removeEditStaffMember(staffAssignment.userId, staffAssignment.role)}>
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Guest Management */}
+            <div className="space-y-4 border-t pt-4">
+              <Label>Guest Management</Label>
+              <div className="grid grid-cols-1 gap-3 p-4 border rounded-lg bg-slate-50">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                  <Input placeholder="Guest name" value={editGuestForm.name} onChange={(e) => setEditGuestForm({ ...editGuestForm, name: e.target.value })} />
+                  <Input placeholder="Title (optional)" value={editGuestForm.title} onChange={(e) => setEditGuestForm({ ...editGuestForm, title: e.target.value })} />
+                  <Select value={editGuestForm.role} onValueChange={(value: string) => setEditGuestForm({ ...editGuestForm, role: value })}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select guest role" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="Guest Speaker">Guest Speaker</SelectItem>
+                      <SelectItem value="Interviewee">Interviewee</SelectItem>
+                      <SelectItem value="Expert">Expert</SelectItem>
+                      <SelectItem value="Author">Author</SelectItem>
+                      <SelectItem value="Musician">Musician</SelectItem>
+                      <SelectItem value="Other">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Button type="button" variant="outline" onClick={addEditGuest} disabled={!editGuestForm.name.trim() || !editGuestForm.role.trim()}>
+                  <Plus className="h-4 w-4 mr-2" />Add Guest
+                </Button>
+              </div>
+              {editForm.guests.length > 0 && (
+                <div className="space-y-2">
+                  {editForm.guests.map((guest, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                      <div className="flex items-center gap-3">
+                        <Avatar className="h-8 w-8">
+                          <AvatarFallback className="text-xs">{guest.name.substring(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium">{guest.name}</span>
+                            {guest.title && (
+                              <Badge variant="outline" className="text-xs bg-blue-100 text-blue-800 border-blue-200">
+                                {guest.title}
+                              </Badge>
+                            )}
+                            <Badge variant="outline" className="bg-green-100 text-green-800 border-green-200">
+                              {guest.role}
+                            </Badge>
+                          </div>
+                        </div>
+                      </div>
+                      <Button type="button" variant="ghost" size="icon" onClick={() => removeEditGuest(index)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t pt-4">
             <Button variant="outline" onClick={() => setIsEditDialogOpen(false)} disabled={editingBroadcast || uploadingAsset}>
               Cancel
             </Button>
@@ -1785,6 +2116,49 @@ export default function BroadcastsPage() {
                 <>
                   <Save className="h-4 w-4 mr-2" />
                   Update Broadcast
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <AlertTriangle className="h-5 w-5" />
+              Delete Broadcast
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete this broadcast? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          {broadcastToDelete && (
+            <div className="py-4">
+              <div className="p-3 bg-slate-50 rounded-lg">
+                <p className="font-medium text-slate-900">{broadcastToDelete.title}</p>
+                <p className="text-sm text-slate-500 mt-1">
+                  {new Date(broadcastToDelete.startTime).toLocaleDateString()} at {new Date(broadcastToDelete.startTime).toLocaleTimeString()}
+                </p>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsDeleteDialogOpen(false)} disabled={isDeleting}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={handleDeleteBroadcast} disabled={isDeleting}>
+              {isDeleting ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash className="h-4 w-4 mr-2" />
+                  Delete Broadcast
                 </>
               )}
             </Button>

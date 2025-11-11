@@ -132,6 +132,22 @@ export const POST = adminOnly(async (req: Request) => {
       },
     });
 
+    // Create corresponding schedule entry
+    await prisma.schedule.create({
+      data: {
+        title: data.title,
+        description: data.description,
+        type: "LIVE_BROADCAST",
+        startTime: new Date(data.startTime),
+        endTime: data.endTime ? new Date(data.endTime) : null,
+        assignedTo: data.hostId,
+        createdBy: user.id,
+        status: data.status === "SCHEDULED" ? "SCHEDULED" : "DRAFT",
+        liveBroadcastId: broadcast.id,
+        priority: 1, // High priority for live broadcasts
+      },
+    });
+
     // Create staff assignments if provided
     if (data.staff && data.staff.length > 0) {
       await prisma.broadcastStaff.createMany({

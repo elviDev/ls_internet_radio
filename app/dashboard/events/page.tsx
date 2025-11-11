@@ -167,23 +167,52 @@ export default function EventsManagePage() {
     try {
       setLoading(true)
       const params = new URLSearchParams({
+        type: "EVENT",
         page: page.toString(),
         perPage: "10"
       })
       if (statusFilter !== "all") {
         params.append("status", statusFilter.toUpperCase())
       }
-      if (upcomingOnly) {
-        params.append("upcoming", "true")
-      }
       if (searchTerm.trim()) {
         params.append("search", searchTerm.trim())
       }
       
-      const response = await fetch(`/api/admin/events?${params}`)
+      const response = await fetch(`/api/admin/schedules?${params}`)
       if (response.ok) {
         const data = await response.json()
-        setEvents(data.events)
+        // Transform schedule data to event format
+        const events = data.schedules.map((schedule: any) => ({
+          id: schedule.id,
+          title: schedule.title,
+          description: schedule.description,
+          startTime: schedule.startTime,
+          endTime: schedule.endTime,
+          eventType: schedule.event?.eventType || "MEETUP",
+          location: schedule.event?.location,
+          venue: schedule.event?.venue,
+          address: schedule.event?.address,
+          city: schedule.event?.city,
+          state: schedule.event?.state,
+          country: schedule.event?.country,
+          isVirtual: schedule.event?.isVirtual || false,
+          virtualLink: schedule.event?.virtualLink,
+          isPaid: schedule.event?.isPaid || false,
+          ticketPrice: schedule.event?.ticketPrice,
+          currency: schedule.event?.currency || "USD",
+          maxAttendees: schedule.event?.maxAttendees,
+          currentAttendees: schedule.event?.currentAttendees || 0,
+          requiresRSVP: schedule.event?.requiresRSVP || false,
+          status: schedule.status,
+          organizer: {
+            id: schedule.creator.id,
+            name: `${schedule.creator.firstName} ${schedule.creator.lastName}`,
+            email: schedule.creator.email
+          },
+          createdAt: schedule.createdAt,
+          scheduleId: schedule.id
+        }))
+        setEvents(events)
         setTotalPages(data.pagination.totalPages)
       } else {
         const errorData = await response.json().catch(() => ({ error: "Unknown error occurred" }))

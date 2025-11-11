@@ -113,12 +113,13 @@ export class UnifiedAudioSystem {
     return new Promise((resolve) => {
       try {
         this.socket = io('http://localhost:3001', {
-          transports: ['websocket', 'polling'],
+          transports: ['websocket'],
           autoConnect: true,
-          timeout: 5000,
+          timeout: 10000,
           reconnection: true,
-          reconnectionAttempts: 3,
-          reconnectionDelay: 1000
+          reconnectionAttempts: 5,
+          reconnectionDelay: 2000,
+          forceNew: false
         })
 
         this.socket.on('connect', () => {
@@ -139,7 +140,7 @@ export class UnifiedAudioSystem {
         setTimeout(() => {
           console.warn('Server connection timeout, continuing without server')
           resolve()
-        }, 8000)
+        }, 12000)
       } catch (error) {
         console.warn('Failed to create socket connection:', error)
         resolve()
@@ -547,10 +548,14 @@ export class UnifiedAudioListener {
         await this.audioContext.resume()
       }
 
-      // Connect to server
+      // Connect to server with stable settings
       this.socket = io('http://localhost:3001', {
-        transports: ['websocket', 'polling'],
-        timeout: 10000
+        transports: ['websocket'],
+        timeout: 15000,
+        reconnection: true,
+        reconnectionAttempts: 3,
+        reconnectionDelay: 3000,
+        forceNew: false
       })
       
       await new Promise((resolve) => {
@@ -567,12 +572,17 @@ export class UnifiedAudioListener {
 
       // Join broadcast as listener if connected
       if (this.socket?.connected) {
+        console.log('🎧 Joining broadcast as listener:', this.broadcastId)
         this.socket.emit('join-broadcast', this.broadcastId)
-
-        // Handle audio stream
-        this.socket.on('audio-stream', (audioData) => {
-          this.playAudioData(audioData)
-        })
+        
+        // Completely ignore WebRTC audio streams to prevent encoding errors
+        this.socket.off('audio-stream')
+        
+        // Use HTTP stream directly
+        setTimeout(() => this.tryHttpStream(), 1000) // Small delay to ensure server is ready
+      } else {
+        console.log('🎧 Socket not connected, using HTTP stream directly')
+        this.tryHttpStream()
       }
 
       this.isListening = true
@@ -583,27 +593,49 @@ export class UnifiedAudioListener {
     }
   }
 
-  private async playAudioData(audioData: any): Promise<void> {
-    if (!this.audioContext || !audioData.audio) return
 
+  
+  private async validateAudioStream(url: string): Promise<boolean> {
     try {
-      const binaryString = atob(audioData.audio)
-      const bytes = new Uint8Array(binaryString.length)
-      
-      for (let i = 0; i < binaryString.length; i++) {
-        bytes[i] = binaryString.charCodeAt(i)
-      }
+      const response = await fetch(url, { method: 'HEAD' })
+      const contentType = response.headers.get('content-type')
+      return response.ok && (contentType?.includes('audio/') || contentType?.includes('application/octet-stream'))
+    } catch {
+      return false
+    }
+  }
 
-      const blob = new Blob([bytes], { type: 'audio/webm' })
-      const arrayBuffer = await blob.arrayBuffer()
-      const audioBuffer = await this.audioContext.decodeAudioData(arrayBuffer)
+  private tryHttpStream(): void {
+    if (!this.audioElement || !this.broadcastId) return
+    
+    const streamUrl = `${process.env.NEXT_PUBLIC_REALTIME_SERVER_URL || 'http://localhost:3001'}/stream/broadcast/${this.broadcastId}/stream.mp3`
+    
+    // Only set stream URL if not already set
+    if (this.audioElement.src !== streamUrl) {
+      console.log('🎵 Setting HTTP stream:', streamUrl)
       
-      const source = this.audioContext.createBufferSource()
-      source.buffer = audioBuffer
-      source.connect(this.audioContext.destination)
-      source.start()
-    } catch (error) {
-      console.error('Error playing audio:', error)
+      // Add event listeners to debug what's happening
+      this.audioElement.onloadstart = () => console.log('🔄 Audio loading started')
+      this.audioElement.oncanplay = () => console.log('✅ Audio can play')
+      this.audioElement.onplay = () => console.log('▶️ Audio started playing')
+      this.audioElement.onerror = (e) => console.error('❌ Audio error:', e)
+      this.audioElement.onabort = () => console.log('⏹️ Audio aborted')
+      this.audioElement.onstalled = () => console.log('⏸️ Audio stalled')
+      
+      // Validate stream before setting
+      this.validateAudioStream(streamUrl).then(isValid => {
+        if (isValid && this.audioElement) {
+          console.log('✅ Stream validation passed, setting source')
+          this.audioElement.src = streamUrl
+          this.audioElement.play().catch(error => {
+            console.error('❌ HTTP stream play failed:', error)
+          })
+        } else {
+          console.warn('❌ Invalid audio stream, skipping')
+        }
+      }).catch(error => {
+        console.error('❌ Stream validation failed:', error)
+      })
     }
   }
 
@@ -628,6 +660,12 @@ export class UnifiedAudioListener {
   setVolume(volume: number): void {
     if (this.audioElement) {
       this.audioElement.volume = Math.max(0, Math.min(1, volume / 100))
+    }
+  }
+
+  setMuted(muted: boolean): void {
+    if (this.audioElement) {
+      this.audioElement.muted = muted
     }
   }
 }

@@ -83,15 +83,19 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
   const [error, setError] = useState<string | null>(null)
   const [currentBroadcastId, setCurrentBroadcastId] = useState<string | null>(null)
 
-  // Initialize realtime client
+  // Initialize realtime client (singleton pattern)
   useEffect(() => {
-    const client = new RealtimeClient('http://localhost:3001')
-    setRealtimeClient(client)
-    
-    return () => {
-      client.disconnect()
+    if (!realtimeClient) {
+      console.log('🔗 Initializing RealtimeClient')
+      const client = new RealtimeClient('http://localhost:3001')
+      setRealtimeClient(client)
+      
+      return () => {
+        console.log('🔗 Cleaning up RealtimeClient')
+        client.disconnect()
+      }
     }
-  }, [])
+  }, [realtimeClient])
 
   // Audio level monitoring
   useEffect(() => {
@@ -289,7 +293,11 @@ export function BroadcastProvider({ children, userId, isBroadcaster = false }: B
 
   const setMuted = useCallback((muted: boolean) => {
     setIsMuted(muted)
-  }, [])
+    
+    if (audioListener) {
+      audioListener.setMuted(muted)
+    }
+  }, [audioListener])
 
   // Cleanup on unmount
   useEffect(() => {
