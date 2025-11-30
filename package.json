@@ -17,7 +17,14 @@
     "docker:down": "docker-compose down",
     "docker:build": "docker-compose up --build",
     "db:studio": "prisma studio",
-    "db:reset": "prisma migrate reset"
+    "db:reset": "prisma migrate reset",
+    "tunnel:start": "./scripts/ngrok-start.sh",
+    "tunnel:status": "./scripts/ngrok-status.sh",
+    "tunnel:urls": "node scripts/get-tunnel-urls.js",
+    "tunnel:update-env": "node scripts/update-env-with-tunnels.js",
+    "tunnel:stop": "pkill -f ngrok",
+    "tunnel:test": "./scripts/test-ngrok.sh",
+    "dev:tunnel": "./scripts/dev-with-ngrok.sh"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.787.0",

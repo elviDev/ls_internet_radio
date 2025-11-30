@@ -36,6 +36,48 @@ function generateSlug(title: string): string {
 export const GET = adminOnly(async (req: Request) => {
   try {
     const { searchParams } = new URL(req.url);
+    
+    // Handle single broadcast fetch by ID
+    const broadcastId = searchParams.get("id");
+    const single = searchParams.get("single");
+    
+    if (broadcastId && single === "true") {
+      const broadcast = await prisma.broadcast.findUnique({
+        where: { id: broadcastId },
+        include: {
+          hostUser: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+              email: true,
+            },
+          },
+          banner: true,
+          program: true,
+          staff: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                  email: true,
+                },
+              },
+            },
+          },
+          guests: true,
+        },
+      });
+      
+      if (!broadcast) {
+        return NextResponse.json({ error: "Broadcast not found" }, { status: 404 });
+      }
+      
+      return NextResponse.json(broadcast);
+    }
+
     const page = parseInt(searchParams.get("page") || "1", 10);
     const perPage = parseInt(searchParams.get("perPage") || "10", 10);
     const status = searchParams.get("status");

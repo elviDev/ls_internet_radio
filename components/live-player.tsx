@@ -52,54 +52,6 @@ function LivePlayerInterface() {
 
   const [currentStreamIndex, setCurrentStreamIndex] = useState(0);
 
-  // Generate a test tone as ultimate fallback
-  const generateTestTone = () => {
-    console.log('Generating test tone as fallback');
-    try {
-      // Create audio context
-      const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
-      
-      // Resume audio context if suspended
-      if (audioContext.state === 'suspended') {
-        audioContext.resume();
-      }
-      
-      const playTone = () => {
-        if (!broadcastContext.isListening) return;
-        
-        // Create oscillator for a simple test tone
-        const oscillator = audioContext.createOscillator();
-        const gainNode = audioContext.createGain();
-        
-        // Set up a pleasant test tone (440Hz A note)
-        oscillator.frequency.setValueAtTime(440, audioContext.currentTime);
-        oscillator.type = 'sine';
-        
-        // Set volume to be gentle
-        gainNode.gain.setValueAtTime(0.05, audioContext.currentTime);
-        
-        // Connect and start
-        oscillator.connect(gainNode);
-        gainNode.connect(audioContext.destination);
-        
-        oscillator.start(audioContext.currentTime);
-        oscillator.stop(audioContext.currentTime + 0.5); // Short beep
-        
-        // Schedule next beep
-        setTimeout(() => {
-          if (broadcastContext.isListening) {
-            playTone();
-          }
-        }, 2000);
-      };
-      
-      playTone();
-      
-    } catch (error) {
-      console.error('Failed to generate test tone:', error);
-    }
-  };
-
   // Fetch current broadcast and schedule data
   const fetchBroadcastData = async () => {
     try {
@@ -107,15 +59,15 @@ function LivePlayerInterface() {
       const currentResponse = await fetch('/api/broadcasts/current');
       if (currentResponse.ok) {
         const currentData = await currentResponse.json();
-        console.log('📻 Current broadcast API response:', currentData);
+        // console.log('📻 Current broadcast API response:', currentData);
         
         // Handle direct response format from the API
         if (currentData.isLive) {
           setCurrentBroadcast(currentData);
           setCurrentShow(currentData.title);
           setFallbackMode(false);
-          // Set HTTP stream URL for sharing
-          setStreamUrl(`${process.env.NEXT_PUBLIC_REALTIME_SERVER_URL || 'http://localhost:3001'}/stream/broadcast/${currentData.id}/stream.mp3`);
+          // Set broadcast ID for WebRTC sharing
+          setStreamUrl(`${window.location.origin}?join=${currentData.slug}`);
         } else {
           // No live broadcast currently
           if (currentData.upcoming) {
@@ -155,11 +107,86 @@ function LivePlayerInterface() {
 
   // Sync with broadcast context state
   useEffect(() => {
-    if (broadcastContext.isStreaming) {
-      setFallbackMode(false);
-      setCurrentShow('Live Broadcast');
+    if (broadcastContext.isStreaming && broadcastContext.currentBroadcastId) {
+      console.log('🎵 LivePlayer syncing with broadcast context:', {
+        isStreaming: broadcastContext.isStreaming,
+        broadcastId: broadcastContext.currentBroadcastId
+      });
+      
+      // Fetch current broadcast details using the active broadcast ID
+      const fetchActiveBroadcastDetails = async () => {
+        try {
+          console.log('🔍 LivePlayer fetching broadcast details for ID:', broadcastContext.currentBroadcastId);
+          const response = await fetch(`/api/admin/broadcasts?id=${broadcastContext.currentBroadcastId}&single=true`);
+          if (response.ok) {
+            const broadcastData = await response.json();
+            console.log('📡 LivePlayer got broadcast details:', {
+              id: broadcastData.id,
+              title: broadcastData.title,
+              status: broadcastData.status,
+              slug: broadcastData.slug
+            });
+            
+            setCurrentBroadcast(broadcastData);
+            setCurrentShow(broadcastData.title);
+            setFallbackMode(false);
+            setStreamUrl(`${window.location.origin}?join=${broadcastData.slug}`);
+          } else {
+            console.warn('LivePlayer: Broadcast details API failed with status:', response.status);
+            // Fallback to generic live message
+            setCurrentShow('Live Broadcast');
+            setFallbackMode(false);
+          }
+        } catch (error) {
+          console.warn('LivePlayer: Failed to fetch active broadcast details:', error);
+          setCurrentShow('Live Broadcast');
+          setFallbackMode(false);
+        }
+      };
+      
+      fetchActiveBroadcastDetails();
+    } else if (!broadcastContext.isStreaming) {
+      // Not streaming, fetch upcoming broadcasts
+      fetchBroadcastData();
     }
-  }, [broadcastContext.isStreaming]);
+  }, [broadcastContext.isStreaming, broadcastContext.currentBroadcastId]);
+
+  // Check for URL parameters to auto-join broadcasts
+  useEffect(() => {
+    const checkAutoJoin = async () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      const joinSlug = urlParams.get('join');
+      
+      if (joinSlug) {
+        console.log('🔗 Auto-joining broadcast from URL:', joinSlug);
+        try {
+          // Fetch broadcast by slug
+          const response = await fetch(`/api/admin/broadcasts/${joinSlug}`);
+          if (response.ok) {
+            const broadcastData = await response.json();
+            if (broadcastData.status === 'LIVE') {
+              setCurrentBroadcast(broadcastData);
+              setCurrentShow(broadcastData.title);
+              setFallbackMode(false);
+              
+              // Auto-join the broadcast
+              await broadcastContext.joinBroadcast(broadcastData.id);
+              console.log('✅ Auto-joined broadcast successfully');
+              
+              // Clean URL
+              window.history.replaceState({}, '', window.location.pathname);
+            } else {
+              console.warn('⚠️ Broadcast is not live:', broadcastData.status);
+            }
+          }
+        } catch (error) {
+          console.error('❌ Failed to auto-join broadcast:', error);
+        }
+      }
+    };
+
+    checkAutoJoin();
+  }, [broadcastContext]);
 
   // Fetch data on component mount and set up periodic refresh
   useEffect(() => {
@@ -268,44 +295,58 @@ function LivePlayerInterface() {
   };
 
   const togglePlay = async () => {
-    console.log('Toggle play clicked. Current state:', {
+    console.log('🎵 LivePlayer toggle play clicked. Current state:', {
       isListening: broadcastContext.isListening,
-      fallbackMode,
       currentBroadcast: !!currentBroadcast,
-      networkStatus: navigator.onLine,
-      connectionState: broadcastContext.connectionState
+      currentBroadcastId: currentBroadcast?.id,
+      connectionState: broadcastContext.connectionState,
+      fallbackMode,
+      broadcastContextId: broadcastContext.currentBroadcastId
     });
 
-    if (broadcastContext.isListening || isPlayingFallback) {
-      // Stop listening
-      if (fallbackMode && audioRef.current) {
+    if (broadcastContext.isListening) {
+      // Stop listening to WebRTC broadcast
+      console.log('🔌 Stopping WebRTC broadcast');
+      broadcastContext.leaveBroadcast();
+    } else if (isPlayingFallback) {
+      // Stop fallback music
+      if (audioRef.current) {
         audioRef.current.pause();
-        console.log('Paused fallback audio');
-      } else {
-        broadcastContext.leaveBroadcast();
-        console.log('Left broadcast');
+        console.log('⏸️ Paused fallback audio');
       }
       setIsPlayingFallback(false);
     } else {
       // Start listening
       setIsLoading(true);
-      console.log('Starting playback...');
+      console.log('🎧 Starting to listen...');
       
-      // Try live broadcast first if available
+      // Try live WebRTC broadcast first if available
       if (currentBroadcast && !fallbackMode) {
-        console.log('Attempting to join live broadcast:', currentBroadcast.id);
+        console.log('📡 LivePlayer attempting to join live WebRTC broadcast:', {
+          broadcastId: currentBroadcast.id,
+          broadcastTitle: currentBroadcast.title,
+          broadcastStatus: currentBroadcast.status
+        });
         try {
           await broadcastContext.joinBroadcast(currentBroadcast.id);
-          console.log('Successfully joined live broadcast');
+          console.log('✅ LivePlayer successfully joined live WebRTC broadcast');
+          setIsLoading(false);
+          return;
         } catch (error) {
-          console.error('Live broadcast connection failed, falling back to music:', error);
+          console.error('❌ LivePlayer WebRTC broadcast connection failed:', error);
           setFallbackMode(true);
         }
+      } else {
+        console.log('⚠️ LivePlayer: No current broadcast or in fallback mode:', {
+          hasBroadcast: !!currentBroadcast,
+          fallbackMode,
+          currentBroadcastId: currentBroadcast?.id
+        });
       }
       
-      // If no live broadcast or fallback mode is enabled
+      // Fallback to music if no live broadcast or WebRTC failed
       if (fallbackMode || !currentBroadcast) {
-        console.log('Using fallback audio mode');
+        console.log('🎵 Using fallback audio mode');
         setFallbackMode(true);
         
         if (audioRef.current) {
@@ -314,23 +355,17 @@ function LivePlayerInterface() {
             const playPromise = audioRef.current.play();
             if (playPromise) {
               playPromise.then(() => {
-                console.log('Fallback audio play started successfully');
+                console.log('✅ Fallback audio started successfully');
                 setIsPlayingFallback(true);
               }).catch(playError => {
-                console.error('Fallback audio failed:', playError);
+                console.error('❌ Fallback audio failed:', playError);
                 if (currentStreamIndex < fallbackStreams.length - 1) {
                   setCurrentStreamIndex((prevIndex) => prevIndex + 1);
-                } else {
-                  // Last resort: generate test tone
-                  generateTestTone();
-                  setIsPlayingFallback(true);
                 }
               });
             }
           } catch (playError) {
-            console.error('Fallback audio setup failed:', playError);
-            generateTestTone();
-            setIsPlayingFallback(true);
+            console.error('❌ Fallback audio setup failed:', playError);
           }
         }
       }
@@ -347,24 +382,31 @@ function LivePlayerInterface() {
     if (!streamUrl || !currentBroadcast) return;
     
     const shareData = {
-      title: `🎙️ ${currentBroadcast.title}`,
-      text: `Listen to ${currentBroadcast.title} live!`,
+      title: `🎙️ Listen Live: ${currentBroadcast.title}`,
+      text: `Join the live broadcast: ${currentBroadcast.title}`,
       url: streamUrl
     };
     
     if (navigator.share) {
       try {
         await navigator.share(shareData);
+        console.log('📤 Broadcast shared successfully');
       } catch (error) {
-        console.log('Share cancelled');
+        console.log('📤 Share cancelled by user');
       }
     } else {
       // Fallback: copy to clipboard
       try {
         await navigator.clipboard.writeText(streamUrl);
-        alert('Stream URL copied to clipboard!');
+        console.log('📋 Share URL copied to clipboard');
+        // Use a toast instead of alert if available
+        if (typeof window !== 'undefined' && (window as any).toast) {
+          (window as any).toast.success('Share link copied to clipboard!');
+        } else {
+          alert('Share link copied to clipboard!');
+        }
       } catch (error) {
-        console.error('Failed to copy:', error);
+        console.error('❌ Failed to copy share URL:', error);
       }
     }
   };

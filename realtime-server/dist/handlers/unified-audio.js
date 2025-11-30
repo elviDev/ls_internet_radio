@@ -1,6 +1,7 @@
 "use strict";
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.default = unifiedAudioHandler;
+const stream_1 = require("../routes/stream");
 const activeBroadcasts = new Map();
 const activeConnections = new Map();
 class BroadcastManager {
@@ -125,8 +126,9 @@ function unifiedAudioHandler(io) {
         });
         // Listener joins broadcast
         socket.on('join-broadcast', (broadcastId, listenerInfo = {}) => {
-            console.log('👥 Listener joining:', broadcastId);
+            console.log(`👥 Listener ${socket.id} joining broadcast: ${broadcastId}`);
             socket.join(`broadcast-${broadcastId}`);
+            console.log(`🏠 Socket ${socket.id} joined room: broadcast-${broadcastId}`);
             const connection = activeConnections.get(socket.id);
             if (connection) {
                 connection.broadcastId = broadcastId;
@@ -136,6 +138,7 @@ function unifiedAudioHandler(io) {
             if (broadcast) {
                 const manager = new BroadcastManager(broadcastId, broadcast.broadcasterInfo);
                 manager.addListener(socket.id);
+                console.log(`📊 Broadcast ${broadcastId} now has ${broadcast.listeners.size} listeners (broadcaster: ${broadcast.broadcaster})`);
                 socket.emit('broadcast-info', {
                     broadcastId,
                     broadcasterInfo: broadcast.broadcasterInfo,
@@ -147,17 +150,40 @@ function unifiedAudioHandler(io) {
                     peak: broadcast.stats.peakListeners
                 });
             }
+            else {
+                console.warn(`⚠️ No active broadcast found for ID: ${broadcastId}`);
+            }
         });
         // Handle audio streaming from broadcaster
         socket.on('broadcast-audio', (broadcastId, audioData) => {
             const broadcast = activeBroadcasts.get(broadcastId);
             if (broadcast && broadcast.broadcaster === socket.id) {
+                console.log(`🎵 Relaying audio from broadcaster ${socket.id} to ${broadcast.listeners.size} listeners in room broadcast-${broadcastId}`);
+                // Send to WebRTC listeners in the broadcast room (excluding broadcaster)
                 socket.to(`broadcast-${broadcastId}`).emit('audio-stream', {
                     audio: audioData.audio,
                     timestamp: audioData.timestamp,
                     metrics: audioData.metrics,
                     broadcasterInfo: broadcast.broadcasterInfo
                 });
+                // Also send to HTTP stream listeners
+                if (audioData.audio) {
+                    try {
+                        // Convert base64 to Buffer
+                        const audioBuffer = Buffer.from(audioData.audio, 'base64');
+                        (0, stream_1.broadcastAudioData)(broadcastId, audioBuffer);
+                    }
+                    catch (error) {
+                        console.error('Failed to convert audio data for HTTP stream:', error);
+                    }
+                }
+                console.log(`📡 Audio relayed to room broadcast-${broadcastId}`);
+            }
+            else if (!broadcast) {
+                console.warn(`⚠️ No broadcast found for ID: ${broadcastId}`);
+            }
+            else if (broadcast.broadcaster !== socket.id) {
+                console.warn(`⚠️ Audio from non-broadcaster ${socket.id} (expected ${broadcast.broadcaster}) for broadcast ${broadcastId}`);
             }
         });
         // Audio source management

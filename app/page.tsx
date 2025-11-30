@@ -14,13 +14,15 @@ export default function Home() {
     <div className="flex flex-col min-h-screen">
       {/* Hero Section */}
       <section className="relative w-full h-[80vh] bg-brand-700 overflow-hidden">
-        <div className="absolute inset-0 z-0 opacity-30">
+        <div className="absolute inset-0 z-0">
           <Image
-            src="/placeholder.svg?height=1080&width=1920&text=Book+Background"
-            alt="Background"
+            src="/pexels-chuck-3587478.jpg"
+            alt="Professional audio recording studio background"
             fill
-            className="object-cover"
+            className="object-cover object-center opacity-40"
+            priority
           />
+          <div className="absolute inset-0 bg-gradient-to-r from-brand-700/60 to-brand-600/40"></div>
         </div>
         <div className="absolute inset-0 z-0">
           <HeroAnimation />

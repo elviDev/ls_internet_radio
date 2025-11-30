@@ -12,6 +12,7 @@ const helmet_1 = __importDefault(require("helmet"));
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
 const chat_1 = __importDefault(require("./routes/chat"));
 const broadcast_1 = __importDefault(require("./routes/broadcast"));
+const stream_1 = __importDefault(require("./routes/stream"));
 const unified_audio_1 = __importDefault(require("./handlers/unified-audio"));
 const chat_2 = __importDefault(require("./handlers/chat"));
 const app = (0, express_1.default)();
@@ -32,6 +33,7 @@ app.use(limiter);
 // Routes
 app.use('/api/chat', chat_1.default);
 app.use('/api/broadcast', broadcast_1.default);
+app.use('/stream', stream_1.default);
 // Health check
 app.get('/health', (req, res) => {
     res.json({ status: 'ok', timestamp: new Date().toISOString() });

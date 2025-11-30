@@ -152,9 +152,10 @@ export default function unifiedAudioHandler(io: Server) {
 
     // Listener joins broadcast
     socket.on('join-broadcast', (broadcastId: string, listenerInfo: any = {}) => {
-      console.log('👥 Listener joining:', broadcastId)
+      console.log(`👥 Listener ${socket.id} joining broadcast: ${broadcastId}`)
       
       socket.join(`broadcast-${broadcastId}`)
+      console.log(`🏠 Socket ${socket.id} joined room: broadcast-${broadcastId}`)
       
       const connection = activeConnections.get(socket.id)
       if (connection) {
@@ -167,6 +168,8 @@ export default function unifiedAudioHandler(io: Server) {
         const manager = new BroadcastManager(broadcastId, broadcast.broadcasterInfo)
         manager.addListener(socket.id)
         
+        console.log(`📊 Broadcast ${broadcastId} now has ${broadcast.listeners.size} listeners (broadcaster: ${broadcast.broadcaster})`)
+        
         socket.emit('broadcast-info', {
           broadcastId,
           broadcasterInfo: broadcast.broadcasterInfo,
@@ -178,6 +181,8 @@ export default function unifiedAudioHandler(io: Server) {
           count: broadcast.listeners.size,
           peak: broadcast.stats.peakListeners
         })
+      } else {
+        console.warn(`⚠️ No active broadcast found for ID: ${broadcastId}`)
       }
     })
 
@@ -185,7 +190,9 @@ export default function unifiedAudioHandler(io: Server) {
     socket.on('broadcast-audio', (broadcastId: string, audioData: any) => {
       const broadcast = activeBroadcasts.get(broadcastId)
       if (broadcast && broadcast.broadcaster === socket.id) {
-        // Send to WebRTC listeners
+        console.log(`🎵 Relaying audio from broadcaster ${socket.id} to ${broadcast.listeners.size} listeners in room broadcast-${broadcastId}`)
+        
+        // Send to WebRTC listeners in the broadcast room (excluding broadcaster)
         socket.to(`broadcast-${broadcastId}`).emit('audio-stream', {
           audio: audioData.audio,
           timestamp: audioData.timestamp,
@@ -203,6 +210,12 @@ export default function unifiedAudioHandler(io: Server) {
             console.error('Failed to convert audio data for HTTP stream:', error)
           }
         }
+        
+        console.log(`📡 Audio relayed to room broadcast-${broadcastId}`)
+      } else if (!broadcast) {
+        console.warn(`⚠️ No broadcast found for ID: ${broadcastId}`)
+      } else if (broadcast.broadcaster !== socket.id) {
+        console.warn(`⚠️ Audio from non-broadcaster ${socket.id} (expected ${broadcast.broadcaster}) for broadcast ${broadcastId}`)
       }
     })
 

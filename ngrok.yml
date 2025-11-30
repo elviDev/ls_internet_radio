@@ -1,0 +1,22 @@
+version: 3
+agent:
+  authtoken: 324mgmv1hUKF6Q5QfJSk2TnpPno_2t6ypKyNNsezDRm4oxEs5
+
+tunnels:
+  # Main Next.js application
+  nextjs:
+    addr: 3000
+    proto: http
+    schemes: [https, http]
+    host_header: localhost:3000
+    inspect: true
+    
+  # Realtime server for WebSocket/Socket.IO
+  realtime:
+    addr: 3001
+    proto: http
+    schemes: [https, http]
+    host_header: localhost:3001
+    inspect: true
+
+# Web interface is available at http://127.0.0.1:4040 by default
