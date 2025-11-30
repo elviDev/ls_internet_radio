@@ -480,24 +480,47 @@ export class UnifiedAudioSystem {
         console.error('🎵 MediaRecorder error:', error)
       }
 
-      // Start recording - use stop/start cycle for complete files
-      mediaRecorder.start()
-      console.log('🎵 WebRTC audio streaming started with MediaRecorder state:', mediaRecorder.state)
+      // Use stop/start approach to force complete MP4 files with initialization
+      let isFirstChunk = true
       
-      // Create complete files every 5 seconds using stop/start cycle
-      const createCompleteFiles = () => {
-        if (mediaRecorder.state === 'recording') {
-          mediaRecorder.stop() // This triggers ondataavailable with complete file
-          setTimeout(() => {
-            if (mediaRecorder.state === 'inactive') {
-              mediaRecorder.start() // Start new complete file
-              setTimeout(createCompleteFiles, 5000)
-            }
-          }, 100)
+      const createCompleteFile = () => {
+        if (mediaRecorder.state === 'inactive') {
+          if (isFirstChunk) {
+            console.log('🎬 Creating first complete MP4 file with initialization')
+            mediaRecorder.start() // Start recording
+            setTimeout(() => {
+              if (mediaRecorder.state === 'recording') {
+                mediaRecorder.stop() // Stop to create complete file
+                isFirstChunk = false
+              }
+            }, 2000) // 2 seconds for first complete file
+          } else {
+            console.log('🎵 Creating short complete file for low latency')
+            mediaRecorder.start() // Start recording  
+            setTimeout(() => {
+              if (mediaRecorder.state === 'recording') {
+                mediaRecorder.stop() // Stop to create complete file
+                setTimeout(createCompleteFile, 50) // Queue next file
+              }
+            }, 500) // 500ms for subsequent files
+          }
         }
       }
       
-      setTimeout(createCompleteFiles, 5000)
+      // Override ondataavailable to trigger next file creation
+      const originalHandler = mediaRecorder.ondataavailable
+      mediaRecorder.ondataavailable = (event) => {
+        originalHandler?.call(mediaRecorder, event)
+        
+        // After file is created, start next one
+        if (event.data.size > 0 && !isFirstChunk) {
+          setTimeout(createCompleteFile, 50)
+        }
+      }
+      
+      // Start the process
+      createCompleteFile()
+      console.log('🎵 WebRTC streaming started with complete file generation')
       
       // Add recording state monitoring
       mediaRecorder.onstart = () => {
@@ -642,6 +665,11 @@ export class UnifiedAudioListener {
   private maxReconnectAttempts = 5
   private pendingAudioChunks: Uint8Array[] = []
   private useSimpleBlobApproach = false
+  private audioChunkBuffer: Uint8Array[] = []
+  private lastPlayTime = 0
+  private audioQueue: Uint8Array[] = []
+  private hasInitializationSegment = false
+  private initializationSegment: Uint8Array | null = null
 
   constructor(private broadcastId: string) {}
 
@@ -895,16 +923,17 @@ export class UnifiedAudioListener {
       // Log the format from audio data
       console.log('🎵 Audio data format info:', this.analyzeAudioData(base64Audio))
 
-      // Try simple blob approach first if enabled
+      // We now have complete MP4 files with ftyp headers - perfect for blob approach!
+      console.log('🎵 Complete MP4 files detected - using blob approach for immediate playback')
+      
+      // Try blob approach first since we have complete playable files
       if (this.useSimpleBlobApproach) {
-        console.log('🎵 Using simple blob approach for audio playback')
         try {
           await this.playAudioWithBlob(bytes)
+          console.log('✅ Complete MP4 file played successfully via blob!')
           return
         } catch (error) {
-          console.warn('⚠️ Blob approach failed for this chunk, will retry next chunk:', error.message)
-          // Don't disable blob approach - MP4 chunks should work
-          // this.useSimpleBlobApproach = false
+          console.warn('⚠️ Blob approach failed, falling back to MediaSource:', error.message)
         }
       }
       
@@ -942,24 +971,71 @@ export class UnifiedAudioListener {
             }
           }
 
-          // Check if this looks like a valid WebM segment
-          const isValidWebMChunk = this.isValidWebMChunk(bytes)
-          console.log(`📦 Chunk validation: ${isValidWebMChunk ? '✅ Valid WebM' : '❌ Invalid WebM'} segment`)
+          // Check if this looks like a valid audio chunk (MP4 or WebM)
+          const isValidChunk = this.isValidAudioChunk(bytes)
+          console.log(`📦 Chunk validation: ${isValidChunk ? '✅ Valid audio' : '❌ Invalid audio'} chunk`)
           
-          if (isValidWebMChunk) {
-            // Add to pending chunks queue
-            this.pendingAudioChunks.push(bytes)
-            // Reduce logging spam - only log every 20 chunks
-            if (this.pendingAudioChunks.length % 20 === 0) {
-              console.log(`📦 Audio flowing: ${this.pendingAudioChunks.length} chunks queued`)
+          if (isValidChunk) {
+            // Check if this is a complete MP4 file with initialization data
+            const boxType = bytes.length >= 8 ? String.fromCharCode(...bytes.slice(4, 8)) : ''
+            
+            // Look for complete files that start with ftyp 
+            if (boxType === 'ftyp' && !this.hasInitializationSegment) {
+              console.log(`🎬 Found complete MP4 file with initialization (${bytes.length} bytes)`)
+              this.initializationSegment = bytes
+              this.hasInitializationSegment = true
+              
+              // Process complete file immediately
+              if (this.sourceBuffer && !this.sourceBuffer.updating) {
+                try {
+                  this.sourceBuffer.appendBuffer(bytes)
+                  console.log('✅ Complete MP4 file added to MediaSource')
+                } catch (error) {
+                  console.error('❌ Failed to add complete MP4 file:', error)
+                }
+              }
+              return // Don't queue complete files with initialization
             }
             
-            // Process immediately if not updating
-            if (!this.sourceBuffer.updating) {
+            // Also handle separate moov boxes if they come later
+            else if (boxType === 'moov' && !this.hasInitializationSegment) {
+              console.log(`🎬 Found separate initialization segment: ${boxType}`)
+              this.initializationSegment = bytes
+              this.hasInitializationSegment = true
+              
+              if (this.sourceBuffer && !this.sourceBuffer.updating) {
+                try {
+                  this.sourceBuffer.appendBuffer(bytes)
+                  console.log('✅ Separate initialization segment added to MediaSource')
+                } catch (error) {
+                  console.error('❌ Failed to add initialization segment:', error)
+                }
+              }
+              return
+            }
+            
+            // Only process media fragments if we have initialization
+            if (!this.hasInitializationSegment && boxType === 'moof') {
+              console.warn('⚠️ Received media fragment without initialization - waiting for init segment')
+              return
+            }
+            
+            // Add to pending chunks queue
+            this.pendingAudioChunks.push(bytes)
+            
+            // For continuous streaming, log every few chunks
+            if (this.pendingAudioChunks.length === 1 || this.pendingAudioChunks.length % 5 === 0) {
+              console.log(`📦 Streaming: ${this.pendingAudioChunks.length} chunks queued (init: ${this.hasInitializationSegment})`)
+            }
+            
+            // Process immediately if not updating and we have init
+            if (!this.sourceBuffer.updating && this.hasInitializationSegment) {
               this.processPendingChunks()
+            } else {
+              console.log('⏳ SourceBuffer busy or waiting for initialization')
             }
           } else {
-            console.warn('⚠️ Skipping invalid WebM chunk - this might cause MediaSource issues')
+            console.warn('⚠️ Skipping invalid audio chunk')
           }
         } catch (error) {
           console.error('❌ Error in MediaSource processing:', error)
@@ -1001,8 +1077,8 @@ export class UnifiedAudioListener {
 
     try {
       const chunk = this.pendingAudioChunks.shift()!
-      // Reduce spam, only log every 10th chunk
-      if (Math.random() < 0.1) {
+      // For continuous streaming, log more frequently for debugging
+      if (this.pendingAudioChunks.length === 0 || Math.random() < 0.2) {
         console.log(`🎵 Processing audio chunk: ${chunk.length} bytes (${this.pendingAudioChunks.length} in queue)`)
       }
       
@@ -1091,6 +1167,10 @@ export class UnifiedAudioListener {
     try {
       // Clear pending chunks to avoid overwhelming the new MediaSource
       this.pendingAudioChunks = []
+      
+      // Reset initialization segment flag - need new one for new MediaSource
+      this.hasInitializationSegment = false
+      this.initializationSegment = null
       
       // Clean up existing MediaSource
       if (this.mediaSource) {
@@ -1305,6 +1385,72 @@ export class UnifiedAudioListener {
     }
   }
 
+  private async handleContinuousAudioStream(bytes: Uint8Array): Promise<void> {
+    // Add chunk to buffer
+    this.audioChunkBuffer.push(bytes)
+    
+    // Check if we have enough data to play (accumulate ~1 second worth)
+    const now = Date.now()
+    
+    // Play immediately for first chunk or if enough time has passed (500ms for low latency)
+    if (this.lastPlayTime === 0 || now - this.lastPlayTime > 500) {
+      if (this.audioChunkBuffer.length > 0) {
+        try {
+          // Combine buffered chunks for smoother playback
+          const combinedSize = this.audioChunkBuffer.reduce((sum, chunk) => sum + chunk.length, 0)
+          const combined = new Uint8Array(combinedSize)
+          let offset = 0
+          
+          for (const chunk of this.audioChunkBuffer) {
+            combined.set(chunk, offset)
+            offset += chunk.length
+          }
+          
+          // Try to play the combined chunk
+          await this.playAudioWithBlob(combined)
+          
+          // Clear buffer and update timing
+          this.audioChunkBuffer = []
+          this.lastPlayTime = now
+          
+          console.log(`🎵 Played combined audio chunk: ${combinedSize} bytes from ${this.audioChunkBuffer.length} chunks`)
+        } catch (error) {
+          console.warn('⚠️ Combined chunk playback failed:', error.message)
+          // Keep trying with individual chunks in queue
+          this.audioQueue.push(...this.audioChunkBuffer)
+          this.audioChunkBuffer = []
+          this.processAudioQueue()
+        }
+      }
+    }
+    
+    // Always try to process any queued audio for continuous playback
+    if (this.audioQueue.length > 0) {
+      this.processAudioQueue()
+    }
+  }
+
+  private async processAudioQueue(): Promise<void> {
+    if (this.audioQueue.length === 0) return
+    
+    const chunk = this.audioQueue.shift()!
+    try {
+      await this.playAudioWithBlob(chunk)
+      console.log(`🎵 Processed queued chunk: ${chunk.length} bytes`)
+      
+      // Continue processing queue with small delay
+      if (this.audioQueue.length > 0) {
+        setTimeout(() => this.processAudioQueue(), 50)
+      }
+    } catch (error) {
+      console.warn('⚠️ Queued chunk failed:', error.message)
+      // Try next chunk in queue
+      if (this.audioQueue.length > 0) {
+        setTimeout(() => this.processAudioQueue(), 100)
+      }
+    }
+  }
+
   private async playAudioWithBlob(bytes: Uint8Array): Promise<void> {
     if (!this.audioElement) {
       throw new Error('No audio element available')
@@ -1386,6 +1532,33 @@ export class UnifiedAudioListener {
       URL.revokeObjectURL(url)
       throw error
     }
+  }
+
+  private isValidAudioChunk(bytes: Uint8Array): boolean {
+    // Check for MP4 fragments (most common now)
+    if (this.isValidMP4Chunk(bytes)) return true
+    
+    // Check for WebM chunks (fallback)
+    if (this.isValidWebMChunk(bytes)) return true
+    
+    return false
+  }
+
+  private isValidMP4Chunk(bytes: Uint8Array): boolean {
+    if (bytes.length < 8) return false
+    
+    // Check for MP4 box signatures
+    const boxType = String.fromCharCode(...bytes.slice(4, 8))
+    
+    // Common MP4 boxes in streaming
+    const validBoxTypes = ['ftyp', 'moof', 'mdat', 'moov', 'mfhd', 'traf', 'tfhd', 'trun']
+    
+    if (validBoxTypes.includes(boxType)) {
+      console.log(`📦 Found MP4 box: ${boxType}`)
+      return true
+    }
+    
+    return false
   }
 
   private isValidWebMChunk(bytes: Uint8Array): boolean {
